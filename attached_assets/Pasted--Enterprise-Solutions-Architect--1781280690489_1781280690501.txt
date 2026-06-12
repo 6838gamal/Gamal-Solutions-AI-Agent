@@ -1,0 +1,408 @@
+أنت مهندس حلول مؤسسية (Enterprise Solutions Architect) وخبير في بناء منصات الذكاء الاصطناعي متعددة الوكلاء (Multi-Agent AI Platforms) باستخدام Python و FastAPI و PostgreSQL.
+
+مهمتك هي تصميم وتنفيذ منصة أعمال ذكية متكاملة (Business Intelligence & AI Automation Platform) تعمل كعقل رقمي للشركة، وتكون قابلة للتوسع التدريجي دون الحاجة لإعادة بناء النظام مستقبلاً.
+
+# الرؤية الأساسية
+
+يجب أن يتحول النظام إلى:
+
+"عقل رقمي مؤسسي موحد"
+
+يقوم بـ:
+
+* فهم بيانات الشركة
+* تعلم سياسات وإجراءات العمل
+* إدارة المعرفة المؤسسية
+* تشغيل وكلاء ذكاء اصطناعي متخصصين
+* أتمتة العمليات
+* مساعدة الموظفين
+* التواصل الذكي مع العملاء
+* دعم الإدارة في اتخاذ القرار
+
+ويعمل وفق المبدأ:
+
+التعلم أولاً → المساعدة ثانياً → التنفيذ ثالثاً → التشغيل شبه الذاتي رابعاً
+
+---
+
+# التقنيات الأساسية
+
+النسخة الحالية (MVP):
+
+* Python 3.11+
+* FastAPI
+* PostgreSQL
+* SQLAlchemy
+* Alembic
+* JWT Authentication
+* Docker
+* Docker Compose
+
+لا تستخدم حالياً:
+
+* Redis
+* Celery
+* Microservices
+
+ويجب أن يكون التصميم قابلاً لإضافتها لاحقاً دون إعادة هيكلة النظام.
+
+---
+
+# Architecture Principles
+
+يجب أن يكون النظام:
+
+* Modular Monolith
+* Clean Architecture
+* Domain Driven Design (DDD) مبسط
+* API First
+* Security First
+* AI Ready
+* Scalable
+
+---
+
+# المكونات الرئيسية
+
+## Knowledge Engine
+
+بناء قاعدة معرفة مركزية للشركة.
+
+المهام:
+
+* استيراد البيانات
+* تنظيف البيانات
+* تصنيف البيانات
+* فهرسة البيانات
+* البحث في البيانات
+* إدارة الإصدارات
+* تتبع المصادر
+
+مصادر المعرفة:
+
+* PDF
+* Word
+* Excel
+* CSV
+* Text Files
+* ERP
+* CRM
+* API
+* Policies
+* Procedures
+* Contracts
+* Product Catalogs
+* FAQs
+* Emails
+
+كل معلومة يجب أن تحتوي على:
+
+* المصدر
+* تاريخ الإضافة
+* آخر تحديث
+* الإصدار
+* مستوى الثقة
+
+---
+
+# Multi-Agent System
+
+## Base Agent
+
+جميع الوكلاء يرثون من Base Agent.
+
+يجب أن يحتوي على:
+
+* التفكير
+* اتخاذ القرار
+* تنفيذ المهام
+* تسجيل القرارات
+* التحقق من الصلاحيات
+
+---
+
+## Sales Agent
+
+* الرد على العملاء
+* تأهيل العملاء المحتملين
+* إنشاء عروض أسعار
+* متابعة العملاء
+* تسجيل الفرص البيعية
+* تحديث CRM
+
+---
+
+## Customer Service Agent
+
+* الرد على الاستفسارات
+* إنشاء التذاكر
+* تصنيف المشكلات
+* التصعيد
+* متابعة الحل
+
+---
+
+## Operations Agent
+
+* مراقبة العمليات
+* متابعة المهام
+* كشف التأخير
+* إنشاء التنبيهات
+* التقارير التشغيلية
+
+---
+
+## Executive Agent
+
+* تحليل البيانات
+* إعداد التقارير
+* إنشاء مؤشرات الأداء
+* كشف المخاطر
+* تقديم التوصيات
+
+---
+
+# Workflow Engine
+
+إدارة الأتمتة والعمليات.
+
+يجب أن يدعم:
+
+* Conditional Workflows
+* Approval Flows
+* Scheduled Actions
+* Business Rules
+
+في النسخة الحالية يتم التنفيذ مباشرة داخل FastAPI.
+
+---
+
+# Omnichannel Communication Hub
+
+يجب تصميم النظام من البداية لدعم الربط المستقبلي مع:
+
+* WhatsApp Business API
+* Telegram
+* Facebook Messenger
+* Instagram Messaging
+* Gmail
+* Outlook
+* SMS Gateways
+* Website Live Chat
+
+المهام:
+
+* استقبال الرسائل
+* توحيد الرسائل
+* توجيهها للوكلاء
+* حفظ المحادثات
+* متابعة حالة العميل
+
+---
+
+# Customer Intelligence Layer
+
+إنشاء ملف ذكي لكل عميل.
+
+يحتوي على:
+
+* البيانات الأساسية
+* تاريخ المحادثات
+* الخدمات السابقة
+* المشتريات
+* التذاكر
+* الاهتمامات
+* الفرص البيعية
+* درجة العميل
+* احتمالية الشراء
+
+يجب أن تستخدم هذه البيانات تلقائياً أثناء اتخاذ القرار.
+
+---
+
+# Marketplace Connectors
+
+تصميم قابل للربط مستقبلاً مع:
+
+* WooCommerce
+* Shopify
+* Gumroad
+* Stripe
+* PayPal
+* Paymob
+* Local Payment Systems
+
+دون الحاجة لإعادة بناء النظام.
+
+---
+
+# Security Layer
+
+يجب تطبيق:
+
+* JWT Authentication
+* RBAC
+* Permissions
+* Session Management
+* Audit Logs
+* API Protection
+
+---
+
+# Agent Governance
+
+يجب وجود حوكمة للوكلاء:
+
+* تحديد الصلاحيات
+* منع العمليات الحساسة
+* الموافقات البشرية
+* تسجيل جميع القرارات
+* إمكانية التراجع عن العمليات
+* تقييم أداء الوكلاء
+
+---
+
+# Audit System
+
+يجب تسجيل:
+
+* جميع الطلبات
+* جميع القرارات
+* جميع العمليات
+* جميع الأخطاء
+* جميع التعديلات
+
+ويجب أن تكون السجلات قابلة للبحث والتصفية.
+
+---
+
+# Enterprise UI/UX Layer
+
+يجب تصميم واجهات احترافية من البداية.
+
+المتطلبات:
+
+* Responsive Design
+* Desktop First
+* Mobile Friendly
+* Arabic RTL
+* English Support
+* Dark Mode
+* Light Mode
+* Reusable Components
+
+---
+
+# الشاشات الأساسية
+
+1. Login
+
+2. Dashboard
+
+3. Knowledge Center
+
+4. Agents Management
+
+5. Customer Center
+
+6. Conversations Center
+
+7. CRM
+
+8. Workflows
+
+9. Tasks
+
+10. Analytics
+
+11. Reports
+
+12. Audit Logs
+
+13. Users & Roles
+
+14. Settings
+
+---
+
+# Database Core Tables
+
+* users
+* roles
+* permissions
+* agents
+* customers
+* conversations
+* messages
+* knowledge_base
+* documents
+* workflows
+* tasks
+* audit_logs
+* integrations
+* reports
+
+---
+
+# مراحل التنفيذ
+
+قبل تنفيذ أي مرحلة:
+
+1. مراجعة المعمارية
+2. اكتشاف النواقص
+3. اقتراح التحسينات
+4. منع التكرار
+5. تحديث التصميم عند الحاجة
+
+---
+
+# مراحل البناء
+
+Phase 1:
+Architecture Design
+
+Phase 2:
+Database Design
+
+Phase 3:
+FastAPI Structure
+
+Phase 4:
+Authentication & RBAC
+
+Phase 5:
+Knowledge Engine
+
+Phase 6:
+Agent Framework
+
+Phase 7:
+Workflow Engine
+
+Phase 8:
+Communication Hub
+
+Phase 9:
+Customer Intelligence
+
+Phase 10:
+Enterprise Dashboard
+
+Phase 11:
+Testing & Security Review
+
+Phase 12:
+Production Deployment
+
+---
+
+# قواعد إلزامية
+
+* لا تنشئ أي كود قبل مراجعة المعمارية الحالية.
+* اكتشف الوحدات الناقصة وأضفها.
+* لا تسمح بتكرار الوظائف.
+* اشرح سبب أي إضافة جديدة.
+* حافظ على خفة النظام.
+* اجعل كل جزء قابلاً للتوسع مستقبلاً.
+* عند إنشاء أي ملف أو وحدة أو جدول أو API قم أولاً بتحليل علاقته بالنظام بالكامل.
+* اعتبر أن الهدف النهائي هو إنشاء منصة أعمال ذكية متكاملة لإدارة العمليات والعملاء والمعرفة والأتمتة والذكاء الاصطناعي من مكان واحد.

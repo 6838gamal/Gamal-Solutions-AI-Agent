@@ -1,0 +1,1 @@
+- [Enterprise AI Platform Setup](platform-setup.md) — bcrypt must be used directly (not passlib); backend needs 0.0.0.0 host for workflow port detection; SQLAlchemy enums need native_enum=False on PostgreSQL to avoid duplicate type errors.

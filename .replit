@@ -1,6 +1,71 @@
+modules = ["python-3.11", "nodejs-20"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
 
 [nix]
 channel = "stable-25_05"
+packages = ["cargo", "libiconv", "libxcrypt", "rustc"]
+
+[userenv]
+
+[userenv.shared]
+DB_URL = "postgresql://gamalalmaqtary:Mxsof46L7GzfDvSI8vyAkt87zmLDzg6P@dpg-d8jrfmt7vvec73e1v6d0-a.virginia-postgres.render.com/gamal_solutions_ai_agent_db"
+BACKEND_PORT = "8000"
+SECRET_KEY = "gamal-solutions-enterprise-secret-key-2024-super-secure"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = "480"
+ENVIRONMENT = "development"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend API"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Backend API"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && python3 run.py"
+waitForPort = 8000
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 8000
+externalPort = 8000
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd backend && python3 run.py & cd frontend && npx serve dist -s -l 5000 & wait"]
+build = ["bash", "-c", "cd frontend && npm run build"]

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}سير العمل{% endblock %}
+{% block page_title %}سير العمل{% endblock %}
+{% block page_subtitle %}إدارة عمليات الأتمتة{% endblock %}
+
+{% block header_actions %}
+<button onclick="openModal('addWfModal')" class="btn-primary">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+  إضافة سير عمل
+</button>
+{% endblock %}
+
+{% block content %}
+{% if workflows %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+  {% for wf in workflows %}
+  <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+    <div class="flex items-start justify-between mb-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        </div>
+        <div>
+          <h3 class="font-bold text-slate-800 text-sm">{{ wf.name_ar or wf.name }}</h3>
+          <span class="text-slate-400 text-xs">{{ wf.trigger }}</span>
+        </div>
+      </div>
+      {% if wf.status == WorkflowStatus.ACTIVE %}<span class="badge badge-green">نشط</span>
+      {% elif wf.status == WorkflowStatus.DRAFT %}<span class="badge badge-yellow">مسودة</span>
+      {% elif wf.status == WorkflowStatus.PAUSED %}<span class="badge badge-blue">موقوف</span>
+      {% else %}<span class="badge badge-gray">مؤرشف</span>{% endif %}
+    </div>
+
+    {% if wf.description %}<p class="text-slate-500 text-xs mb-4 leading-relaxed">{{ wf.description[:100] }}</p>{% endif %}
+
+    <div class="flex items-center gap-4 text-xs text-slate-500 mb-4">
+      <span>التشغيل: <strong class="text-slate-700">{{ wf.run_count }}</strong></span>
+      {% if wf.last_run %}<span>آخر تشغيل: <strong class="text-slate-700">{{ wf.last_run.strftime('%Y-%m-%d') }}</strong></span>{% endif %}
+    </div>
+
+    <div class="flex gap-2 pt-3 border-t border-slate-100">
+      <button onclick="toggleWorkflow({{ wf.id }}, '{{ wf.status }}')" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+        {% if wf.status == WorkflowStatus.ACTIVE %}إيقاف{% else %}تفعيل{% endif %}
+      </button>
+      <span class="text-slate-300">|</span>
+      <button onclick="confirmDelete('/api/v1/workflows/{{ wf.id }}', '{{ wf.name_ar or wf.name }}')" class="text-xs text-red-500 hover:text-red-700 font-medium">حذف</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-20 text-slate-400">
+  <svg class="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+  <p class="font-semibold text-lg">لا توجد سير عمل</p>
+</div>
+{% endif %}
+
+<!-- Add Workflow Modal -->
+<div id="addWfModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <h3 class="font-bold text-slate-800">إضافة سير عمل</h3>
+      <button onclick="closeModal('addWfModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">الاسم بالعربية *</label><input id="wf_name_ar" class="form-input" placeholder="اسم سير العمل" /></div>
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">الاسم بالإنجليزية</label><input id="wf_name" class="form-input" placeholder="Workflow name" /></div>
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">الوصف</label><textarea id="wf_desc" class="form-input" rows="2"></textarea></div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">المُشغِّل</label>
+        <select id="wf_trigger" class="form-input">
+          <option value="manual">يدوي</option>
+          <option value="scheduled">مجدول</option>
+          <option value="event">حدث</option>
+          <option value="api">API</option>
+        </select>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="submitWorkflow()" class="btn-primary flex-1 justify-center">حفظ</button>
+        <button onclick="closeModal('addWfModal')" class="btn-secondary flex-1 justify-center">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getCookie(name) {
+  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(name+'='))?.split('=')[1] || '';
+}
+function submitWorkflow() {
+  const data = {
+    name_ar: document.getElementById('wf_name_ar').value,
+    name: document.getElementById('wf_name').value || document.getElementById('wf_name_ar').value,
+    description: document.getElementById('wf_desc').value || null,
+    trigger: document.getElementById('wf_trigger').value,
+  };
+  if (!data.name_ar) { alert('الاسم مطلوب'); return; }
+  fetch('/api/v1/workflows/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('access_token')}` },
+    body: JSON.stringify(data)
+  }).then(r => { if (r.ok) location.reload(); });
+}
+function toggleWorkflow(id, status) {
+  const newStatus = status === 'active' ? 'paused' : 'active';
+  fetch(`/api/v1/workflows/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('access_token')}` },
+    body: JSON.stringify({ status: newStatus })
+  }).then(r => { if (r.ok) location.reload(); });
+}
+</script>
+{% endblock %}

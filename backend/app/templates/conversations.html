@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}المحادثات{% endblock %}
+{% block page_title %}المحادثات{% endblock %}
+{% block page_subtitle %}مركز التواصل متعدد القنوات{% endblock %}
+
+{% block header_actions %}
+<button onclick="openModal('addConvModal')" class="btn-primary">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+  محادثة جديدة
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">الموضوع</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">القناة</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">الحالة</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">الأولوية</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">تاريخ الإنشاء</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for conv in conversations %}
+        <tr class="hover:bg-slate-50 transition-colors cursor-pointer">
+          <td class="px-5 py-4">
+            <div class="font-semibold text-slate-800">{{ conv.subject or 'محادثة #' ~ conv.id }}</div>
+            <div class="text-slate-400 text-xs">ID: {{ conv.id }}</div>
+          </td>
+          <td class="px-5 py-4">
+            {% set ch_map = {'web':'🌐 ويب','whatsapp':'💬 واتساب','telegram':'✈️ تيليجرام','email':'📧 بريد','sms':'📱 SMS','phone':'📞 هاتف','internal':'🏢 داخلي'} %}
+            <span class="text-slate-600">{{ ch_map.get(conv.channel, conv.channel) }}</span>
+          </td>
+          <td class="px-5 py-4">
+            {% if conv.status == 'open' %}<span class="badge badge-green">مفتوح</span>
+            {% elif conv.status == 'pending' %}<span class="badge badge-yellow">معلق</span>
+            {% elif conv.status == 'resolved' %}<span class="badge badge-blue">محلول</span>
+            {% else %}<span class="badge badge-gray">مغلق</span>{% endif %}
+          </td>
+          <td class="px-5 py-4">
+            {% if conv.priority == 'urgent' %}<span class="badge badge-red">عاجل</span>
+            {% elif conv.priority == 'high' %}<span class="badge badge-yellow">مرتفع</span>
+            {% else %}<span class="badge badge-gray">عادي</span>{% endif %}
+          </td>
+          <td class="px-5 py-4 text-slate-400 text-xs">{{ conv.created_at.strftime('%Y-%m-%d %H:%M') if conv.created_at else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center py-12 text-slate-400">لا توجد محادثات حتى الآن</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Conversation Modal -->
+<div id="addConvModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <h3 class="font-bold text-slate-800">محادثة جديدة</h3>
+      <button onclick="closeModal('addConvModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">الموضوع</label><input id="cv_subject" class="form-input" placeholder="موضوع المحادثة" /></div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">القناة</label>
+        <select id="cv_channel" class="form-input">
+          <option value="web">ويب</option>
+          <option value="whatsapp">واتساب</option>
+          <option value="email">بريد إلكتروني</option>
+          <option value="phone">هاتف</option>
+          <option value="internal">داخلي</option>
+        </select>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="submitConversation()" class="btn-primary flex-1 justify-center">إنشاء</button>
+        <button onclick="closeModal('addConvModal')" class="btn-secondary flex-1 justify-center">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getCookie(name) {
+  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(name+'='))?.split('=')[1] || '';
+}
+function submitConversation() {
+  fetch('/api/v1/conversations/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('access_token')}` },
+    body: JSON.stringify({ subject: document.getElementById('cv_subject').value, channel: document.getElementById('cv_channel').value })
+  }).then(r => { if (r.ok) location.reload(); });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}لوحة التحكم — جمال سولوشنز{% endblock %}
+{% block page_title %}لوحة التحكم{% endblock %}
+{% block page_subtitle %}نظرة عامة على أداء المنصة{% endblock %}
+
+{% block content %}
+<!-- Stats Grid -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+  <div class="stat-card">
+    <div class="flex items-center justify-between mb-3">
+      <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
+      </div>
+    </div>
+    <div class="text-2xl font-bold text-slate-800">{{ stats.total_agents }}</div>
+    <div class="text-slate-500 text-sm">إجمالي الوكلاء</div>
+    <div class="text-emerald-600 text-xs mt-1 font-medium">{{ stats.active_agents }} نشط</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between mb-3">
+      <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+        <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+    </div>
+    <div class="text-2xl font-bold text-slate-800">{{ stats.total_customers }}</div>
+    <div class="text-slate-500 text-sm">إجمالي العملاء</div>
+    <div class="text-blue-600 text-xs mt-1 font-medium">{{ customer_by_status.get('active', 0) }} عميل نشط</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between mb-3">
+      <div class="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+        <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+      </div>
+    </div>
+    <div class="text-2xl font-bold text-slate-800">{{ stats.total_conversations }}</div>
+    <div class="text-slate-500 text-sm">المحادثات</div>
+    <div class="text-amber-600 text-xs mt-1 font-medium">{{ stats.open_conversations }} مفتوح</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between mb-3">
+      <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      </div>
+    </div>
+    <div class="text-2xl font-bold text-slate-800">{{ stats.total_tasks }}</div>
+    <div class="text-slate-500 text-sm">المهام</div>
+    <div class="text-red-500 text-xs mt-1 font-medium">{{ stats.pending_tasks }} معلق</div>
+  </div>
+</div>
+
+<!-- Second row -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+  <div class="stat-card">
+    <div class="text-2xl font-bold text-slate-800">{{ stats.total_documents }}</div>
+    <div class="text-slate-500 text-sm">وثائق المعرفة</div>
+  </div>
+  <div class="stat-card">
+    <div class="text-2xl font-bold text-slate-800">{{ stats.total_workflows }}</div>
+    <div class="text-slate-500 text-sm">سير العمل</div>
+  </div>
+  <div class="stat-card">
+    <div class="text-2xl font-bold text-slate-800">{{ stats.total_users }}</div>
+    <div class="text-slate-500 text-sm">المستخدمون</div>
+  </div>
+  <div class="stat-card">
+    <div class="text-2xl font-bold text-slate-800">{{ stats.active_agents }}</div>
+    <div class="text-slate-500 text-sm">وكلاء نشطون</div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+    <h3 class="text-base font-bold text-slate-800 mb-4">توزيع العملاء حسب الحالة</h3>
+    <canvas id="customersChart" height="220"></canvas>
+  </div>
+  <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+    <h3 class="text-base font-bold text-slate-800 mb-4">ملخص النظام</h3>
+    <canvas id="systemChart" height="220"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const customerLabels = {{ customer_by_status.keys() | list | tojson }};
+const customerData   = {{ customer_by_status.values() | list | tojson }};
+const labelMap = {lead:'عميل محتمل',prospect:'فرصة',active:'نشط',inactive:'غير نشط',churned:'مغادر'};
+
+new Chart(document.getElementById('customersChart'), {
+  type: 'doughnut',
+  data: {
+    labels: customerLabels.map(l => labelMap[l] || l),
+    datasets: [{ data: customerData, backgroundColor: ['#3b82f6','#10b981','#f59e0b','#6366f1','#ef4444'], borderWidth: 0 }]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { family: 'Cairo' } } } } }
+});
+
+new Chart(document.getElementById('systemChart'), {
+  type: 'bar',
+  data: {
+    labels: ['الوكلاء','العملاء','المحادثات','المهام','الوثائق','سير العمل'],
+    datasets: [{
+      label: 'الإجمالي',
+      data: [{{ stats.total_agents }}, {{ stats.total_customers }}, {{ stats.total_conversations }}, {{ stats.total_tasks }}, {{ stats.total_documents }}, {{ stats.total_workflows }}],
+      backgroundColor: '#3b82f6', borderRadius: 8
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+</script>
+{% endblock %}

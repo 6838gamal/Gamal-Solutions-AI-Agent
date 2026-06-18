@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.api.v1.api import api_router
+from app.web.router import router as web_router
+import os
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -18,7 +22,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Static files
+static_dir = os.path.join(os.path.dirname(__file__), "../../static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# API routes
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Web (HTML) routes
+app.include_router(web_router)
 
 
 @app.on_event("startup")

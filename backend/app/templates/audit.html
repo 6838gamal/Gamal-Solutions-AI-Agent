@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}سجل التدقيق{% endblock %}
+{% block page_title %}سجل التدقيق{% endblock %}
+{% block page_subtitle %}مراقبة الأنشطة وتتبع الأحداث الأمنية{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">الإجراء</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">المورد</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">الوصف</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">المستخدم</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">الحالة</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">التاريخ</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for log in logs %}
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="px-5 py-3">
+            {% set action_map = {'create': ('badge-green', 'إنشاء'), 'read': ('badge-blue', 'قراءة'), 'update': ('badge-yellow', 'تعديل'), 'delete': ('badge-red', 'حذف'), 'login': ('badge-green', 'دخول'), 'logout': ('badge-gray', 'خروج'), 'execute': ('badge-purple', 'تنفيذ'), 'error': ('badge-red', 'خطأ')} %}
+            {% set cls, lbl = action_map.get(log.action, ('badge-gray', log.action)) %}
+            <span class="badge {{ cls }}">{{ lbl }}</span>
+          </td>
+          <td class="px-5 py-3 text-slate-600">{{ log.resource or '—' }}{% if log.resource_id %} #{{ log.resource_id }}{% endif %}</td>
+          <td class="px-5 py-3 text-slate-500 max-w-xs">
+            {% if log.description %}{{ log.description[:80] }}{% if log.description|length > 80 %}...{% endif %}{% else %}—{% endif %}
+          </td>
+          <td class="px-5 py-3 text-slate-600">{{ log.user_id or '—' }}</td>
+          <td class="px-5 py-3">
+            {% if log.status == 'success' %}<span class="badge badge-green">نجاح</span>
+            {% else %}<span class="badge badge-red">فشل</span>{% endif %}
+          </td>
+          <td class="px-5 py-3 text-slate-400 text-xs whitespace-nowrap">{{ log.created_at.strftime('%Y-%m-%d %H:%M') if log.created_at else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center py-12 text-slate-400">لا توجد سجلات حتى الآن</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

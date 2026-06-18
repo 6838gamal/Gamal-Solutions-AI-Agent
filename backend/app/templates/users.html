@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}إدارة المستخدمين{% endblock %}
+{% block page_title %}إدارة المستخدمين{% endblock %}
+{% block page_subtitle %}إدارة حسابات المستخدمين والصلاحيات{% endblock %}
+
+{% block header_actions %}
+<button onclick="openModal('addUserModal')" class="btn-primary">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+  إضافة مستخدم
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-200">
+        <tr>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">المستخدم</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">البريد</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">القسم</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">الصلاحية</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">الحالة</th>
+          <th class="text-right px-5 py-3 font-semibold text-slate-600">آخر دخول</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for u in users %}
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="px-5 py-4">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <span class="text-blue-700 font-bold text-sm">{{ (u.full_name or u.username)[0] | upper }}</span>
+              </div>
+              <div>
+                <div class="font-semibold text-slate-800">{{ u.full_name or u.username }}</div>
+                <div class="text-slate-400 text-xs">@{{ u.username }}</div>
+              </div>
+            </div>
+          </td>
+          <td class="px-5 py-4 text-slate-600">{{ u.email }}</td>
+          <td class="px-5 py-4 text-slate-600">{{ u.department or '—' }}</td>
+          <td class="px-5 py-4">
+            {% if u.is_superuser %}<span class="badge badge-red">مدير النظام</span>
+            {% else %}<span class="badge badge-blue">مستخدم</span>{% endif %}
+          </td>
+          <td class="px-5 py-4">
+            {% if u.is_active %}<span class="badge badge-green">نشط</span>
+            {% else %}<span class="badge badge-gray">معطل</span>{% endif %}
+          </td>
+          <td class="px-5 py-4 text-slate-400 text-xs">{{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else 'لم يدخل بعد' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center py-12 text-slate-400">لا يوجد مستخدمون</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="addUserModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <h3 class="font-bold text-slate-800">إضافة مستخدم جديد</h3>
+      <button onclick="closeModal('addUserModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">اسم المستخدم *</label><input id="u_username" class="form-input" /></div>
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">الاسم الكامل</label><input id="u_fullname" class="form-input" /></div>
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">البريد الإلكتروني *</label><input id="u_email" type="email" class="form-input" /></div>
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">كلمة المرور *</label><input id="u_password" type="password" class="form-input" /></div>
+      <div><label class="block text-sm font-medium text-slate-700 mb-1">القسم</label><input id="u_dept" class="form-input" /></div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="submitUser()" class="btn-primary flex-1 justify-center">حفظ</button>
+        <button onclick="closeModal('addUserModal')" class="btn-secondary flex-1 justify-center">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getCookie(name) {
+  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(name+'='))?.split('=')[1] || '';
+}
+function submitUser() {
+  const data = {
+    username: document.getElementById('u_username').value,
+    full_name: document.getElementById('u_fullname').value || null,
+    email: document.getElementById('u_email').value,
+    password: document.getElementById('u_password').value,
+    department: document.getElementById('u_dept').value || null,
+  };
+  if (!data.username || !data.email || !data.password) { alert('يرجى تعبئة الحقول المطلوبة'); return; }
+  fetch('/api/v1/auth/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('access_token')}` },
+    body: JSON.stringify(data)
+  }).then(r => { if (r.ok) location.reload(); else r.json().then(e => alert(JSON.stringify(e.detail))); });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}الإعدادات{% endblock %}
+{% block page_title %}الإعدادات{% endblock %}
+{% block page_subtitle %}إدارة حسابك الشخصي{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-6">
+  {% if success %}
+  <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm" data-auto-dismiss>
+    ✓ {{ success }}
+  </div>
+  {% endif %}
+  {% if error %}
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm" data-auto-dismiss>
+    ✗ {{ error }}
+  </div>
+  {% endif %}
+
+  <!-- Profile Card -->
+  <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+    <div class="flex items-center gap-4 mb-6">
+      <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center">
+        <span class="text-white text-2xl font-bold">{{ (user.full_name or user.username)[0] | upper }}</span>
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-slate-800">{{ user.full_name or user.username }}</h2>
+        <p class="text-slate-500">{{ user.email }}</p>
+        <p class="text-xs text-slate-400 mt-0.5">{% if user.is_superuser %}مدير النظام{% else %}مستخدم{% endif %} • {{ user.department or 'بدون قسم' }}</p>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4 text-sm">
+      <div><span class="text-slate-500">اسم المستخدم:</span> <strong class="text-slate-800">{{ user.username }}</strong></div>
+      <div><span class="text-slate-500">البريد:</span> <strong class="text-slate-800">{{ user.email }}</strong></div>
+      <div><span class="text-slate-500">الهاتف:</span> <strong class="text-slate-800">{{ user.phone or '—' }}</strong></div>
+      <div><span class="text-slate-500">آخر دخول:</span> <strong class="text-slate-800">{{ user.last_login.strftime('%Y-%m-%d') if user.last_login else 'أول مرة' }}</strong></div>
+      <div><span class="text-slate-500">تاريخ الإنشاء:</span> <strong class="text-slate-800">{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '—' }}</strong></div>
+      <div><span class="text-slate-500">اللغة:</span> <strong class="text-slate-800">{{ user.language or 'ar' }}</strong></div>
+    </div>
+  </div>
+
+  <!-- Change Password -->
+  <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+    <h3 class="font-bold text-slate-800 mb-5">تغيير كلمة المرور</h3>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">كلمة المرور الحالية</label>
+        <input id="old_pass" type="password" class="form-input" placeholder="••••••••" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">كلمة المرور الجديدة</label>
+        <input id="new_pass" type="password" class="form-input" placeholder="••••••••" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">تأكيد كلمة المرور</label>
+        <input id="confirm_pass" type="password" class="form-input" placeholder="••••••••" />
+      </div>
+      <button onclick="changePassword()" class="btn-primary">حفظ كلمة المرور</button>
+    </div>
+  </div>
+
+  <!-- System Info -->
+  <div class="bg-slate-800 rounded-2xl p-6 text-white">
+    <h3 class="font-bold mb-4">معلومات النظام</h3>
+    <div class="grid grid-cols-2 gap-3 text-sm">
+      <div class="bg-white/10 rounded-xl p-3">
+        <div class="text-slate-400 text-xs">المنصة</div>
+        <div class="font-semibold mt-1">FastAPI + Python 3.11</div>
+      </div>
+      <div class="bg-white/10 rounded-xl p-3">
+        <div class="text-slate-400 text-xs">قاعدة البيانات</div>
+        <div class="font-semibold mt-1">PostgreSQL</div>
+      </div>
+      <div class="bg-white/10 rounded-xl p-3">
+        <div class="text-slate-400 text-xs">الإصدار</div>
+        <div class="font-semibold mt-1">1.0.0</div>
+      </div>
+      <div class="bg-white/10 rounded-xl p-3">
+        <div class="text-slate-400 text-xs">الحالة</div>
+        <div class="font-semibold mt-1 text-emerald-400">✓ يعمل</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logout -->
+  <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+    <h3 class="font-bold text-slate-800 mb-2">تسجيل الخروج</h3>
+    <p class="text-slate-500 text-sm mb-4">سيتم إنهاء جلستك الحالية وإعادة التوجيه لصفحة الدخول.</p>
+    <a href="/logout" class="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      تسجيل الخروج
+    </a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getCookie(name) {
+  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(name+'='))?.split('=')[1] || '';
+}
+function changePassword() {
+  const old_p = document.getElementById('old_pass').value;
+  const new_p = document.getElementById('new_pass').value;
+  const conf_p = document.getElementById('confirm_pass').value;
+  if (!old_p || !new_p) { alert('يرجى تعبئة جميع الحقول'); return; }
+  if (new_p !== conf_p) { alert('كلمة المرور الجديدة وتأكيدها غير متطابقتين'); return; }
+  fetch('/api/v1/auth/me/password', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('access_token')}` },
+    body: JSON.stringify({ old_password: old_p, new_password: new_p })
+  }).then(r => {
+    if (r.ok) { alert('تم تغيير كلمة المرور بنجاح'); location.reload(); }
+    else r.json().then(e => alert(e.detail || 'حدث خطأ'));
+  });
+}
+</script>
+{% endblock %}

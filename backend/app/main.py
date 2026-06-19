@@ -27,6 +27,15 @@ static_dir = os.path.join(os.path.dirname(__file__), "../../static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    from fastapi.responses import FileResponse
+    fav = os.path.join(os.path.dirname(__file__), "../../static/favicon.ico")
+    if os.path.exists(fav):
+        return FileResponse(fav)
+    from fastapi.responses import Response
+    return Response(status_code=204)
+
 # API routes
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

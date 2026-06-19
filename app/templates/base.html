@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>{% block title %}منصة جمال للذكاء الاصطناعي{% endblock %}</title>
   <link rel="icon" href="/favicon.ico" type="image/x-icon" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -86,7 +89,7 @@
 
 <!-- Sidebar (RTL: fixed to the right) -->
 <aside id="sidebar"
-       class="w-72 bg-gradient-to-b from-slate-900 to-slate-800 flex flex-col min-h-screen
+       class="w-72 bg-gradient-to-b from-slate-900 to-slate-800 flex flex-col h-screen overflow-hidden
               fixed top-0 right-0 z-50 shadow-2xl
               translate-x-full lg:translate-x-0">
 
@@ -329,6 +332,31 @@
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') closeSidebar();
   });
+
+  /* ── Strict logout: منع العودة بزر الرجوع بعد تسجيل الخروج ── */
+  {% if user is defined and user %}
+  /* علّم الصفحة المحمية */
+  window.__IS_PROTECTED__ = true;
+
+  /* اكتشاف bfcache (Back/Forward Cache) */
+  window.addEventListener('pageshow', function(e) {
+    if (e.persisted) {
+      /* الصفحة تحمّلت من الكاش (زر الرجوع) — تحقق من الجلسة فوراً */
+      fetch('/session-check', { credentials: 'include' })
+        .then(function(r) {
+          if (r.status === 401 || r.status === 403) {
+            window.location.replace('/login');
+          }
+        })
+        .catch(function() { window.location.replace('/login'); });
+    }
+  });
+
+  /* تعطيل cache للصفحات المحمية */
+  window.addEventListener('beforeunload', function() {
+    /* لا شيء — فقط لتنبيه المتصفح أن الصفحة لا تُعاد استخدامها */
+  });
+  {% endif %}
 </script>
 {% block scripts %}{% endblock %}
 </body>

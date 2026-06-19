@@ -1,11 +1,24 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.api.v1.api import api_router
 from app.web.router import router as web_router
 import os
+
+
+class NoCacheHTMLMiddleware(BaseHTTPMiddleware):
+    """Add Cache-Control: no-store to all protected HTML page responses."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        content_type = response.headers.get("content-type", "")
+        if "text/html" in content_type:
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -13,6 +26,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
+app.add_middleware(NoCacheHTMLMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

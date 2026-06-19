@@ -111,9 +111,21 @@ def login_submit(
 @router.get("/logout")
 def logout(request: Request):
     response = RedirectResponse(url="/login", status_code=302)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     secure = _is_https(request)
-    response.delete_cookie(COOKIE_NAME, path="/", secure=secure)
+    response.delete_cookie(COOKIE_NAME, path="/", secure=secure, httponly=True, samesite="lax")
     return response
+
+
+@router.get("/session-check")
+def session_check(request: Request, db: Session = Depends(get_db)):
+    """Lightweight cookie-based session check for the back-button guard."""
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"authenticated": False}, status_code=401)
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"authenticated": True})
 
 
 # ─── DASHBOARD ────────────────────────────────────────────────────────────────

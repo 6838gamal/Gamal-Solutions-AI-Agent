@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text, Enum
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text, Enum
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 import enum
@@ -11,6 +11,7 @@ class DocumentType(str, enum.Enum):
     EXCEL = "excel"
     CSV = "csv"
     TEXT = "text"
+    JSON = "json"
     URL = "url"
     MANUAL = "manual"
     POLICY = "policy"
@@ -52,6 +53,11 @@ class KnowledgeDocument(Base):
     confidence_score = Column(Float, default=1.0)
     tags = Column(JSON, default=list)
     metadata_extra = Column(JSON, default=dict)
+    file_path = Column(String(500))
+    file_name = Column(String(255))
+    file_size = Column(Integer, default=0)
+    is_trained = Column(Boolean, default=False)
+    trained_at = Column(DateTime, nullable=True)
     category_id = Column(Integer, ForeignKey("knowledge_categories.id"))
     created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)

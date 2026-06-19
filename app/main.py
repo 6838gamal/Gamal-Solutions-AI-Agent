@@ -63,6 +63,22 @@ def startup():
     def init_db():
         try:
             Base.metadata.create_all(bind=engine)
+            # Migrate new knowledge_documents columns (idempotent)
+            from sqlalchemy import text
+            migrations = [
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)",
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS file_name VARCHAR(255)",
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS file_size INTEGER DEFAULT 0",
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS is_trained BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS trained_at TIMESTAMP",
+            ]
+            with engine.connect() as conn:
+                for sql in migrations:
+                    try:
+                        conn.execute(text(sql))
+                    except Exception:
+                        pass
+                conn.commit()
             db = SessionLocal()
             try:
                 from app.domains.auth.service import ensure_superuser

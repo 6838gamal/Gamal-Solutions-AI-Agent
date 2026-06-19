@@ -22,6 +22,45 @@ logger = logging.getLogger(__name__)
 
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "../templates"))
 
+# ─── Jinja2 Globals ────────────────────────────────────────────────────────────
+
+_TYPE_BG = {
+    'pdf': 'bg-red-100', 'word': 'bg-blue-100', 'excel': 'bg-emerald-100',
+    'csv': 'bg-teal-100', 'text': 'bg-slate-100', 'json': 'bg-amber-100',
+    'url': 'bg-sky-100', 'manual': 'bg-indigo-100', 'policy': 'bg-purple-100',
+    'procedure': 'bg-violet-100', 'contract': 'bg-orange-100',
+    'faq': 'bg-pink-100', 'other': 'bg-slate-100',
+}
+_TYPE_BADGE = {
+    'pdf': 'bg-red-50 text-red-700', 'word': 'bg-blue-50 text-blue-700',
+    'excel': 'bg-emerald-50 text-emerald-700', 'csv': 'bg-teal-50 text-teal-700',
+    'text': 'bg-slate-100 text-slate-600', 'json': 'bg-amber-50 text-amber-700',
+    'url': 'bg-sky-50 text-sky-700', 'manual': 'bg-indigo-50 text-indigo-700',
+    'policy': 'bg-purple-50 text-purple-700', 'procedure': 'bg-violet-50 text-violet-700',
+    'contract': 'bg-orange-50 text-orange-700', 'faq': 'bg-pink-50 text-pink-700',
+    'other': 'bg-slate-100 text-slate-500',
+}
+_TYPE_LABEL = {
+    'pdf': 'PDF', 'word': 'Word', 'excel': 'Excel', 'csv': 'CSV',
+    'text': 'نص', 'json': 'JSON', 'url': 'رابط', 'manual': 'دليل',
+    'policy': 'سياسة', 'procedure': 'إجراء', 'contract': 'عقد',
+    'faq': 'أسئلة شائعة', 'other': 'أخرى',
+}
+
+_PDF_ICON = '<svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM9.5 17.5H8v-5h1.5c1.1 0 1.8.7 1.8 2.5s-.7 2.5-1.8 2.5zm0-4H9v3h.5c.6 0 .8-.5.8-1.5s-.2-1.5-.8-1.5zm3.5 4h-1v-5h1c1.2 0 2 .8 2 2.5s-.8 2.5-2 2.5zm0-4h-.1v3H13c.6 0 1-.4 1-1.5s-.4-1.5-1-1.5zm4 0h-1.5v1h1.3v1h-1.3v2H15v-5h2v1z"/></svg>'
+_WORD_ICON = '<svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17l1.5-5 1.5 4 1.5-4L14 17h-1l-1-3-1 3H8z"/></svg>'
+_EXCEL_ICON = '<svg class="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 13l2 2-2 2h1.5l1.5-1.5L12.5 17H14l-2-2 2-2h-1.5L11 14.5 9.5 13H8z"/></svg>'
+_DEFAULT_ICON = '<svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>'
+_TYPE_ICONS = {
+    'pdf': _PDF_ICON, 'word': _WORD_ICON, 'excel': _EXCEL_ICON,
+    'csv': _EXCEL_ICON.replace('emerald', 'teal'),
+}
+
+templates.env.globals['doc_type_bg'] = lambda dt: _TYPE_BG.get(str(dt), 'bg-slate-100')
+templates.env.globals['type_badge_class'] = lambda dt: _TYPE_BADGE.get(str(dt), 'bg-slate-100 text-slate-500')
+templates.env.globals['doc_type_label'] = lambda dt: _TYPE_LABEL.get(str(dt), str(dt))
+templates.env.globals['doc_type_icon'] = lambda dt: _TYPE_ICONS.get(str(dt), _DEFAULT_ICON)
+
 router = APIRouter(tags=["Web"])
 
 COOKIE_NAME = "access_token"
@@ -213,9 +252,23 @@ def knowledge_page(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login", status_code=302)
     documents = db.query(kb_models.KnowledgeDocument).order_by(kb_models.KnowledgeDocument.created_at.desc()).all()
     categories = db.query(kb_models.KnowledgeCategory).all()
+    total_docs = len(documents)
+    try:
+        trained_docs = sum(1 for d in documents if d.is_trained)
+    except Exception:
+        trained_docs = 0
+    processing_docs = sum(1 for d in documents if d.status == kb_models.KnowledgeStatus.PROCESSING)
+    active_docs = sum(1 for d in documents if d.status == kb_models.KnowledgeStatus.ACTIVE)
     return templates.TemplateResponse("knowledge.html", {
         "request": request, "user": user, "documents": documents,
-        "categories": categories, "page": "knowledge"
+        "categories": categories, "page": "knowledge",
+        "stats": {
+            "total": total_docs,
+            "trained": trained_docs,
+            "processing": processing_docs,
+            "active": active_docs,
+            "categories": len(categories),
+        }
     })
 
 

@@ -1,130 +1,816 @@
 {% extends "base.html" %}
 {% block title %}قاعدة المعرفة{% endblock %}
 {% block page_title %}قاعدة المعرفة{% endblock %}
-{% block page_subtitle %}مستودع الوثائق والمعرفة المؤسسية{% endblock %}
+{% block page_subtitle %}رفع الوثائق وتدريب الوكلاء على المحتوى المؤسسي{% endblock %}
 
 {% block header_actions %}
-<button onclick="openModal('addDocModal')" class="btn-primary">
-  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-  إضافة وثيقة
+<button onclick="openUploadModal()" class="btn-primary">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+  رفع وثيقة
 </button>
 {% endblock %}
 
 {% block content %}
-<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead class="bg-slate-50 border-b border-slate-200">
-        <tr>
-          <th class="text-right px-5 py-3 font-semibold text-slate-600">العنوان</th>
-          <th class="text-right px-5 py-3 font-semibold text-slate-600">النوع</th>
-          <th class="text-right px-5 py-3 font-semibold text-slate-600">الفئة</th>
-          <th class="text-right px-5 py-3 font-semibold text-slate-600">الحالة</th>
-          <th class="text-right px-5 py-3 font-semibold text-slate-600">الإصدار</th>
-          <th class="text-right px-5 py-3 font-semibold text-slate-600">تاريخ الإضافة</th>
-          <th class="px-5 py-3"></th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-slate-100">
-        {% for doc in documents %}
-        <tr class="hover:bg-slate-50 transition-colors">
-          <td class="px-5 py-4">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              </div>
-              <div>
-                <div class="font-semibold text-slate-800">{{ doc.title_ar or doc.title }}</div>
-                {% if doc.summary %}<div class="text-slate-400 text-xs">{{ doc.summary[:60] }}...</div>{% endif %}
-              </div>
-            </div>
-          </td>
-          <td class="px-5 py-4"><span class="badge badge-blue">{{ doc.doc_type }}</span></td>
-          <td class="px-5 py-4 text-slate-600">{{ doc.category.name_ar or doc.category.name if doc.category else '—' }}</td>
-          <td class="px-5 py-4">
-            {% if doc.status == 'active' %}<span class="badge badge-green">نشط</span>
-            {% elif doc.status == 'archived' %}<span class="badge badge-gray">مؤرشف</span>
-            {% elif doc.status == 'processing' %}<span class="badge badge-yellow">معالجة</span>
-            {% else %}<span class="badge badge-red">خطأ</span>{% endif %}
-          </td>
-          <td class="px-5 py-4 text-slate-500">v{{ doc.version }}</td>
-          <td class="px-5 py-4 text-slate-400 text-xs">{{ doc.created_at.strftime('%Y-%m-%d') if doc.created_at else '—' }}</td>
-          <td class="px-5 py-4">
-            <button onclick="confirmDelete('/api/v1/knowledge/documents/{{ doc.id }}', '{{ doc.title_ar or doc.title }}')" class="btn-danger">حذف</button>
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7" class="text-center py-12 text-slate-400">لا توجد وثائق في قاعدة المعرفة</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+<!-- Stats Row -->
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+  <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </div>
+      <div>
+        <div class="text-2xl font-bold text-slate-800">{{ stats.total }}</div>
+        <div class="text-xs text-slate-500">إجمالي الوثائق</div>
+      </div>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <div>
+        <div class="text-2xl font-bold text-slate-800">{{ stats.active }}</div>
+        <div class="text-xs text-slate-500">نشطة</div>
+      </div>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      </div>
+      <div>
+        <div class="text-2xl font-bold text-slate-800">{{ stats.trained }}</div>
+        <div class="text-xs text-slate-500">مدرَّبة</div>
+      </div>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <div>
+        <div class="text-2xl font-bold text-slate-800">{{ stats.processing }}</div>
+        <div class="text-xs text-slate-500">قيد المعالجة</div>
+      </div>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm col-span-2 lg:col-span-1">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-5 h-5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+      </div>
+      <div>
+        <div class="text-2xl font-bold text-slate-800">{{ stats.categories }}</div>
+        <div class="text-xs text-slate-500">الفئات</div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Add Document Modal -->
-<div id="addDocModal" class="modal-overlay hidden">
-  <div class="modal-box">
+<!-- Tab Navigation -->
+<div class="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl w-fit">
+  <button id="tab-docs" onclick="switchTab('docs')"
+    class="px-5 py-2 rounded-lg text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
+    الوثائق
+  </button>
+  <button id="tab-cats" onclick="switchTab('cats')"
+    class="px-5 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
+    الفئات
+  </button>
+</div>
+
+<!-- ═══ DOCUMENTS PANE ═══ -->
+<div id="pane-docs">
+
+  <!-- Filter Bar -->
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 mb-5">
+    <div class="flex flex-col sm:flex-row gap-3">
+      <div class="relative flex-1">
+        <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-docs" oninput="filterDocs()" type="text" placeholder="ابحث في الوثائق..."
+          class="w-full pr-10 pl-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400" />
+      </div>
+      <select id="filter-status" onchange="filterDocs()" class="form-input w-full sm:w-44 text-sm">
+        <option value="">جميع الحالات</option>
+        <option value="active">نشطة</option>
+        <option value="processing">قيد المعالجة</option>
+        <option value="archived">مؤرشفة</option>
+        <option value="error">خطأ</option>
+      </select>
+      <select id="filter-cat" onchange="filterDocs()" class="form-input w-full sm:w-44 text-sm">
+        <option value="">جميع الفئات</option>
+        {% for cat in categories %}
+        <option value="{{ cat.id }}">{{ cat.name_ar or cat.name }}</option>
+        {% endfor %}
+      </select>
+      <select id="filter-trained" onchange="filterDocs()" class="form-input w-full sm:w-44 text-sm">
+        <option value="">الكل</option>
+        <option value="trained">مدرَّبة فقط</option>
+        <option value="untrained">غير مدرَّبة</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Documents Grid -->
+  <div id="docs-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for doc in documents %}
+    <div class="doc-card bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col"
+         data-title="{{ (doc.title_ar or doc.title)|lower }}"
+         data-status="{{ doc.status }}"
+         data-category="{{ doc.category_id or '' }}"
+         data-trained="{{ 'true' if doc.is_trained else 'false' }}">
+
+      <!-- Card Header -->
+      <div class="p-4 flex items-start gap-3 border-b border-slate-50">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 {{ doc_type_bg(doc.doc_type) }}">
+          {{ doc_type_icon(doc.doc_type) | safe }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold text-slate-800 text-sm leading-snug truncate">{{ doc.title_ar or doc.title }}</h3>
+          {% if doc.title_ar and doc.title and doc.title_ar != doc.title %}
+          <p class="text-xs text-slate-400 truncate mt-0.5">{{ doc.title }}</p>
+          {% endif %}
+          <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium {{ type_badge_class(doc.doc_type) }}">
+              {{ doc_type_label(doc.doc_type) }}
+            </span>
+            {% if doc.status == 'active' %}
+            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-700">
+              <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>نشط
+            </span>
+            {% elif doc.status == 'processing' %}
+            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700">
+              <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>معالجة
+            </span>
+            {% elif doc.status == 'archived' %}
+            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-500">مؤرشف</span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-red-50 text-red-600">خطأ</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Body -->
+      <div class="p-4 flex-1 space-y-2">
+        {% if doc.summary %}
+        <p class="text-xs text-slate-500 leading-relaxed line-clamp-2">{{ doc.summary }}</p>
+        {% endif %}
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
+          {% if doc.category %}
+          <span class="flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+            {{ doc.category.name_ar or doc.category.name }}
+          </span>
+          {% endif %}
+          {% if doc.file_name %}
+          <span class="flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+            {% if doc.file_size and doc.file_size > 0 %}{{ "%.1f"|format(doc.file_size / 1024) }} KB{% else %}ملف{% endif %}
+          </span>
+          {% endif %}
+          <span class="flex items-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            {{ doc.created_at.strftime('%Y/%m/%d') if doc.created_at else '—' }}
+          </span>
+          <span>v{{ doc.version }}</span>
+        </div>
+
+        <!-- Training Status Banner -->
+        {% if doc.is_trained %}
+        <div class="flex items-center gap-2 bg-violet-50 text-violet-700 rounded-xl px-3 py-2 text-xs font-medium mt-2">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          الوكيل مدرَّب على هذه الوثيقة
+          {% if doc.trained_at %}· {{ doc.trained_at.strftime('%Y/%m/%d') }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Card Actions -->
+      <div class="px-4 pb-4 flex gap-2 flex-wrap">
+        {% if not doc.is_trained %}
+        <button onclick="trainDocument({{ doc.id }}, this)"
+          class="flex-1 flex items-center justify-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium py-2 px-3 rounded-xl transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          تدريب الوكيل
+        </button>
+        {% else %}
+        <button onclick="untrainDocument({{ doc.id }}, this)"
+          class="flex-1 flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium py-2 px-3 rounded-xl transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+          إلغاء التدريب
+        </button>
+        {% endif %}
+        <button onclick="openEditModal({{ doc.id }}, '{{ doc.title_ar or doc.title }}', '{{ doc.title or '' }}', '{{ doc.doc_type }}', {{ doc.category_id or 'null' }}, '{{ doc.status }}', '{{ doc.summary or '' }}', '{{ doc.version }}')"
+          class="flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-medium py-2 px-3 rounded-xl transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          تعديل
+        </button>
+        <button onclick="confirmDelete('/api/v1/knowledge/documents/{{ doc.id }}', '{{ doc.title_ar or doc.title }}')"
+          class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-500 text-xs font-medium py-2 px-3 rounded-xl transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          حذف
+        </button>
+      </div>
+    </div>
+    {% else %}
+    <div class="col-span-full flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
+      <svg class="w-16 h-16 mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <p class="font-medium text-slate-500 mb-1">لا توجد وثائق بعد</p>
+      <p class="text-sm mb-4">ارفع أول وثيقة لبدء تدريب الوكلاء</p>
+      <button onclick="openUploadModal()" class="btn-primary">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        رفع وثيقة
+      </button>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div id="no-results" class="hidden col-span-full flex flex-col items-center py-12 text-slate-400">
+    <p class="text-sm">لا توجد نتائج مطابقة</p>
+  </div>
+</div>
+
+<!-- ═══ CATEGORIES PANE ═══ -->
+<div id="pane-cats" class="hidden">
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
     <div class="flex items-center justify-between p-5 border-b border-slate-100">
-      <h3 class="font-bold text-slate-800">إضافة وثيقة جديدة</h3>
-      <button onclick="closeModal('addDocModal')" class="text-slate-400 hover:text-slate-600">✕</button>
+      <h3 class="font-semibold text-slate-800">إدارة الفئات</h3>
+      <button onclick="openModal('addCatModal')" class="btn-primary text-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        فئة جديدة
+      </button>
+    </div>
+    {% if categories %}
+    <div class="divide-y divide-slate-50">
+      {% for cat in categories %}
+      <div class="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors group">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-sky-100 rounded-xl flex items-center justify-center">
+            <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+          </div>
+          <div>
+            <div class="font-medium text-slate-800 text-sm">{{ cat.name_ar or cat.name }}</div>
+            {% if cat.name_ar and cat.name %}<div class="text-xs text-slate-400">{{ cat.name }}</div>{% endif %}
+            {% if cat.description %}<div class="text-xs text-slate-400 mt-0.5">{{ cat.description }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onclick="openEditCatModal({{ cat.id }}, '{{ cat.name }}', '{{ cat.name_ar or '' }}', '{{ cat.description or '' }}')"
+            class="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          </button>
+          <button onclick="confirmDelete('/api/v1/knowledge/categories/{{ cat.id }}', '{{ cat.name_ar or cat.name }}')"
+            class="p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="flex flex-col items-center py-16 text-slate-400">
+      <svg class="w-12 h-12 mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+      <p class="text-sm">لا توجد فئات — أنشئ أول فئة الآن</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- UPLOAD MODAL -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="uploadModal" class="modal-overlay hidden">
+  <div class="modal-box max-w-lg">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <div>
+        <h3 class="font-bold text-slate-800">رفع وثيقة جديدة</h3>
+        <p class="text-xs text-slate-400 mt-0.5">PDF · Word · Excel · TXT · CSV · JSON</p>
+      </div>
+      <button onclick="closeModal('uploadModal')" class="text-slate-400 hover:text-slate-600 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="uploadForm" class="p-5 space-y-4" onsubmit="submitUpload(event)">
+
+      <!-- Drag & Drop Zone -->
+      <div id="dropzone"
+        class="relative border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all duration-200"
+        onclick="document.getElementById('fileInput').click()"
+        ondragover="handleDragOver(event)"
+        ondragleave="handleDragLeave(event)"
+        ondrop="handleDrop(event)">
+        <input id="fileInput" type="file" class="hidden"
+          accept=".pdf,.txt,.text,.docx,.doc,.xlsx,.xls,.csv,.json,.md"
+          onchange="handleFileSelect(event)" />
+        <div id="dropzone-content">
+          <div class="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <svg class="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          </div>
+          <p class="font-medium text-slate-700 mb-1">اسحب الملف هنا أو انقر للاختيار</p>
+          <p class="text-xs text-slate-400">PDF · DOCX · XLSX · TXT · CSV · JSON (الحد الأقصى 20 MB)</p>
+        </div>
+        <div id="file-preview" class="hidden items-center gap-3 justify-center">
+          <div id="file-icon" class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"></div>
+          <div class="text-right">
+            <p id="file-name-preview" class="font-medium text-slate-700 text-sm"></p>
+            <p id="file-size-preview" class="text-xs text-slate-400"></p>
+          </div>
+          <button type="button" onclick="clearFile(event)"
+            class="mr-auto w-7 h-7 bg-red-50 hover:bg-red-100 text-red-400 rounded-full flex items-center justify-center flex-shrink-0 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-medium text-slate-700 mb-1">العنوان بالعربية <span class="text-red-500">*</span></label>
+          <input id="u_title_ar" name="title_ar" type="text" required class="form-input" placeholder="عنوان الوثيقة" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">العنوان بالإنجليزية</label>
+          <input id="u_title" name="title" type="text" class="form-input" placeholder="Document title" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">الفئة</label>
+          <select id="u_category" name="category_id" class="form-input">
+            <option value="">— بدون فئة —</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.name_ar or cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-medium text-slate-700 mb-1">الملخص</label>
+          <textarea id="u_summary" name="summary" class="form-input" rows="2" placeholder="وصف مختصر للوثيقة..."></textarea>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div id="upload-progress" class="hidden">
+        <div class="flex items-center justify-between mb-1 text-xs text-slate-500">
+          <span>جاري رفع الملف وتحليل المحتوى...</span>
+          <span id="progress-pct">0%</span>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-2">
+          <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 pt-1">
+        <button type="submit" id="upload-btn" class="btn-primary flex-1 justify-center">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          رفع وحفظ
+        </button>
+        <button type="button" onclick="closeModal('uploadModal')" class="btn-secondary flex-1 justify-center">إلغاء</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- EDIT DOCUMENT MODAL -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="editDocModal" class="modal-overlay hidden">
+  <div class="modal-box max-w-lg">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <h3 class="font-bold text-slate-800">تعديل الوثيقة</h3>
+      <button onclick="closeModal('editDocModal')" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
     <div class="p-5 space-y-4">
-      <div><label class="block text-sm font-medium text-slate-700 mb-1">العنوان بالعربية *</label><input id="d_title_ar" class="form-input" placeholder="عنوان الوثيقة" /></div>
-      <div><label class="block text-sm font-medium text-slate-700 mb-1">العنوان بالإنجليزية</label><input id="d_title" class="form-input" placeholder="Document title" /></div>
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">النوع</label>
-        <select id="d_type" class="form-input">
-          <option value="manual">دليل</option>
-          <option value="policy">سياسة</option>
-          <option value="procedure">إجراء</option>
-          <option value="faq">أسئلة شائعة</option>
-          <option value="text">نص</option>
-          <option value="other">أخرى</option>
-        </select>
+      <input type="hidden" id="edit_doc_id" />
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-medium text-slate-700 mb-1">العنوان بالعربية</label>
+          <input id="edit_title_ar" class="form-input" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">العنوان بالإنجليزية</label>
+          <input id="edit_title" class="form-input" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">النوع</label>
+          <select id="edit_type" class="form-input">
+            <option value="manual">دليل</option>
+            <option value="policy">سياسة</option>
+            <option value="procedure">إجراء</option>
+            <option value="faq">أسئلة شائعة</option>
+            <option value="pdf">PDF</option>
+            <option value="word">Word</option>
+            <option value="excel">Excel</option>
+            <option value="csv">CSV</option>
+            <option value="text">نص</option>
+            <option value="json">JSON</option>
+            <option value="other">أخرى</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">الفئة</label>
+          <select id="edit_category" class="form-input">
+            <option value="">— بدون فئة —</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.name_ar or cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">الحالة</label>
+          <select id="edit_status" class="form-input">
+            <option value="active">نشط</option>
+            <option value="archived">مؤرشف</option>
+            <option value="processing">قيد المعالجة</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">الإصدار</label>
+          <input id="edit_version" class="form-input" placeholder="1.0" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-medium text-slate-700 mb-1">الملخص</label>
+          <textarea id="edit_summary" class="form-input" rows="2"></textarea>
+        </div>
       </div>
-      {% if categories %}
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1">الفئة</label>
-        <select id="d_category" class="form-input">
-          <option value="">— بدون فئة —</option>
-          {% for cat in categories %}
-          <option value="{{ cat.id }}">{{ cat.name_ar or cat.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      {% endif %}
-      <div><label class="block text-sm font-medium text-slate-700 mb-1">الملخص</label><textarea id="d_summary" class="form-input" rows="2"></textarea></div>
-      <div><label class="block text-sm font-medium text-slate-700 mb-1">المحتوى</label><textarea id="d_content" class="form-input" rows="4"></textarea></div>
-      <div class="flex gap-3 pt-2">
-        <button onclick="submitDocument()" class="btn-primary flex-1 justify-center">حفظ</button>
-        <button onclick="closeModal('addDocModal')" class="btn-secondary flex-1 justify-center">إلغاء</button>
+      <div class="flex gap-3 pt-1">
+        <button onclick="submitEdit()" class="btn-primary flex-1 justify-center">حفظ التعديلات</button>
+        <button onclick="closeModal('editDocModal')" class="btn-secondary flex-1 justify-center">إلغاء</button>
       </div>
     </div>
   </div>
 </div>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- ADD CATEGORY MODAL -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="addCatModal" class="modal-overlay hidden">
+  <div class="modal-box max-w-sm">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <h3 class="font-bold text-slate-800">فئة جديدة</h3>
+      <button onclick="closeModal('addCatModal')" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">الاسم بالعربية <span class="text-red-500">*</span></label>
+        <input id="cat_name_ar" class="form-input" placeholder="اسم الفئة" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">الاسم بالإنجليزية</label>
+        <input id="cat_name" class="form-input" placeholder="Category name" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">الوصف</label>
+        <textarea id="cat_desc" class="form-input" rows="2" placeholder="وصف الفئة..."></textarea>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="submitCategory()" class="btn-primary flex-1 justify-center">إنشاء</button>
+        <button onclick="closeModal('addCatModal')" class="btn-secondary flex-1 justify-center">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- EDIT CATEGORY MODAL -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="editCatModal" class="modal-overlay hidden">
+  <div class="modal-box max-w-sm">
+    <div class="flex items-center justify-between p-5 border-b border-slate-100">
+      <h3 class="font-bold text-slate-800">تعديل الفئة</h3>
+      <button onclick="closeModal('editCatModal')" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-5 space-y-4">
+      <input type="hidden" id="edit_cat_id" />
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">الاسم بالعربية</label>
+        <input id="edit_cat_name_ar" class="form-input" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">الاسم بالإنجليزية</label>
+        <input id="edit_cat_name" class="form-input" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">الوصف</label>
+        <textarea id="edit_cat_desc" class="form-input" rows="2"></textarea>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="submitEditCategory()" class="btn-primary flex-1 justify-center">حفظ</button>
+        <button onclick="closeModal('editCatModal')" class="btn-secondary flex-1 justify-center">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Toast Notification -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] hidden">
+  <div id="toast-inner" class="flex items-center gap-3 bg-white border border-slate-200 shadow-xl rounded-2xl px-5 py-3 text-sm font-medium text-slate-700 min-w-64">
+    <span id="toast-icon"></span>
+    <span id="toast-msg"></span>
+  </div>
+</div>
+
 {% endblock %}
+
 
 {% block scripts %}
 <script>
-function getCookie(name) {
-  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith(name+'='))?.split('=')[1] || '';
+/* ── Helpers ─────────────────────────────────────── */
+function getToken() {
+  return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('access_token='))?.split('=')[1]||'';
 }
-function submitDocument() {
-  const catVal = document.getElementById('d_category')?.value;
-  const data = {
-    title_ar: document.getElementById('d_title_ar').value,
-    title: document.getElementById('d_title').value || document.getElementById('d_title_ar').value,
-    doc_type: document.getElementById('d_type').value,
-    summary: document.getElementById('d_summary').value || null,
-    content: document.getElementById('d_content').value || null,
-    category_id: catVal ? parseInt(catVal) : null,
+function api(url, opts={}) {
+  return fetch(url, {
+    credentials: 'include',
+    headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json', ...(opts.headers||{}) },
+    ...opts
+  });
+}
+
+/* ── Toast ───────────────────────────────────────── */
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  const inner = document.getElementById('toast-inner');
+  const icon = document.getElementById('toast-icon');
+  const msgEl = document.getElementById('toast-msg');
+  const colors = { success:'border-emerald-200 bg-emerald-50 text-emerald-800', error:'border-red-200 bg-red-50 text-red-700', info:'border-blue-200 bg-blue-50 text-blue-700' };
+  const icons = { success:'✓', error:'✕', info:'ℹ' };
+  inner.className = `flex items-center gap-3 border shadow-xl rounded-2xl px-5 py-3 text-sm font-medium min-w-64 ${colors[type]||colors.info}`;
+  icon.textContent = icons[type]||'';
+  msgEl.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(t._to);
+  t._to = setTimeout(() => t.classList.add('hidden'), 3000);
+}
+
+/* ── Tab Switching ───────────────────────────────── */
+function switchTab(tab) {
+  const isDoc = tab === 'docs';
+  document.getElementById('pane-docs').classList.toggle('hidden', !isDoc);
+  document.getElementById('pane-cats').classList.toggle('hidden', isDoc);
+  const active = 'bg-white text-blue-600 shadow-sm';
+  const inactive = 'text-slate-500 hover:text-slate-700';
+  document.getElementById('tab-docs').className = `px-5 py-2 rounded-lg text-sm font-medium transition-all ${isDoc ? active : inactive}`;
+  document.getElementById('tab-cats').className = `px-5 py-2 rounded-lg text-sm font-medium transition-all ${!isDoc ? active : inactive}`;
+}
+
+/* ── Filter ──────────────────────────────────────── */
+function filterDocs() {
+  const search = document.getElementById('search-docs').value.toLowerCase();
+  const status = document.getElementById('filter-status').value;
+  const catId  = document.getElementById('filter-cat').value;
+  const trained = document.getElementById('filter-trained').value;
+  let visible = 0;
+  document.querySelectorAll('.doc-card').forEach(card => {
+    const matchSearch  = !search  || card.dataset.title.includes(search);
+    const matchStatus  = !status  || card.dataset.status === status;
+    const matchCat     = !catId   || card.dataset.category === catId;
+    const matchTrained = !trained || (trained === 'trained' ? card.dataset.trained === 'true' : card.dataset.trained === 'false');
+    const show = matchSearch && matchStatus && matchCat && matchTrained;
+    card.classList.toggle('hidden', !show);
+    if (show) visible++;
+  });
+  document.getElementById('no-results').classList.toggle('hidden', visible > 0);
+}
+
+/* ── Upload Modal ────────────────────────────────── */
+function openUploadModal() {
+  document.getElementById('uploadForm').reset();
+  clearFile();
+  document.getElementById('upload-progress').classList.add('hidden');
+  openModal('uploadModal');
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.add('border-blue-400','bg-blue-50/30');
+}
+function handleDragLeave(e) {
+  document.getElementById('dropzone').classList.remove('border-blue-400','bg-blue-50/30');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  handleDragLeave(e);
+  const file = e.dataTransfer.files[0];
+  if (file) setFilePreview(file);
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) setFilePreview(file);
+}
+function setFilePreview(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const typeColors = {
+    pdf:'bg-red-100 text-red-600', docx:'bg-blue-100 text-blue-600', doc:'bg-blue-100 text-blue-600',
+    xlsx:'bg-emerald-100 text-emerald-600', xls:'bg-emerald-100 text-emerald-600',
+    csv:'bg-teal-100 text-teal-600', txt:'bg-slate-100 text-slate-600',
+    text:'bg-slate-100 text-slate-600', json:'bg-amber-100 text-amber-600',
+    md:'bg-purple-100 text-purple-600'
   };
-  if (!data.title_ar) { alert('العنوان مطلوب'); return; }
-  fetch('/api/v1/knowledge/documents', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getCookie('access_token')}` },
-    body: JSON.stringify(data)
-  }).then(r => { if (r.ok) location.reload(); else r.json().then(e => alert(JSON.stringify(e.detail))); });
+  const color = typeColors[ext] || 'bg-slate-100 text-slate-500';
+  document.getElementById('file-icon').className = `w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`;
+  document.getElementById('file-icon').innerHTML = `<span class="text-sm font-bold uppercase">${ext}</span>`;
+  document.getElementById('file-name-preview').textContent = file.name;
+  document.getElementById('file-size-preview').textContent = (file.size/1024).toFixed(1) + ' KB';
+  document.getElementById('dropzone-content').classList.add('hidden');
+  document.getElementById('file-preview').classList.remove('hidden');
+  document.getElementById('file-preview').classList.add('flex');
+}
+function clearFile(e) {
+  if (e) e.stopPropagation();
+  document.getElementById('fileInput').value = '';
+  document.getElementById('file-preview').classList.add('hidden');
+  document.getElementById('file-preview').classList.remove('flex');
+  document.getElementById('dropzone-content').classList.remove('hidden');
+}
+
+async function submitUpload(e) {
+  e.preventDefault();
+  const titleAr = document.getElementById('u_title_ar').value.trim();
+  if (!titleAr) { showToast('العنوان بالعربية مطلوب', 'error'); return; }
+  const fileInput = document.getElementById('fileInput');
+  if (!fileInput.files[0]) { showToast('يرجى اختيار ملف', 'error'); return; }
+
+  const btn = document.getElementById('upload-btn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> جاري الرفع...`;
+
+  const progressDiv = document.getElementById('upload-progress');
+  const progressBar = document.getElementById('progress-bar');
+  const progressPct = document.getElementById('progress-pct');
+  progressDiv.classList.remove('hidden');
+
+  // Simulate progress
+  let pct = 0;
+  const ticker = setInterval(() => {
+    pct = Math.min(pct + Math.random() * 15, 85);
+    progressBar.style.width = pct + '%';
+    progressPct.textContent = Math.round(pct) + '%';
+  }, 200);
+
+  const fd = new FormData();
+  fd.append('title_ar', titleAr);
+  fd.append('title', document.getElementById('u_title').value || titleAr);
+  const cat = document.getElementById('u_category').value;
+  if (cat) fd.append('category_id', cat);
+  const summary = document.getElementById('u_summary').value;
+  if (summary) fd.append('summary', summary);
+  fd.append('file', fileInput.files[0]);
+
+  try {
+    const r = await fetch('/api/v1/knowledge/documents/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+      credentials: 'include',
+      body: fd
+    });
+    clearInterval(ticker);
+    progressBar.style.width = '100%';
+    progressPct.textContent = '100%';
+    if (r.ok) {
+      showToast('تم رفع الوثيقة وتحليل المحتوى بنجاح ✓', 'success');
+      setTimeout(() => location.reload(), 900);
+    } else {
+      const err = await r.json();
+      showToast(err.detail || 'حدث خطأ أثناء الرفع', 'error');
+      btn.disabled = false;
+      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> رفع وحفظ`;
+    }
+  } catch {
+    clearInterval(ticker);
+    showToast('تعذر الاتصال بالخادم', 'error');
+    btn.disabled = false;
+    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> رفع وحفظ`;
+  }
+}
+
+/* ── Train / Untrain ─────────────────────────────── */
+async function trainDocument(docId, btn) {
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> جاري التدريب...`;
+  try {
+    const r = await api(`/api/v1/knowledge/documents/${docId}/train`, { method: 'POST' });
+    if (r.ok) {
+      showToast('تم تدريب الوكيل على الوثيقة بنجاح', 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      const err = await r.json();
+      showToast(err.detail || 'تعذر التدريب', 'error');
+      btn.disabled = false;
+    }
+  } catch {
+    showToast('تعذر الاتصال', 'error');
+    btn.disabled = false;
+  }
+}
+
+async function untrainDocument(docId, btn) {
+  btn.disabled = true;
+  try {
+    const r = await api(`/api/v1/knowledge/documents/${docId}/untrain`, { method: 'POST' });
+    if (r.ok) {
+      showToast('تم إلغاء التدريب', 'info');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      showToast('تعذرت العملية', 'error');
+      btn.disabled = false;
+    }
+  } catch {
+    showToast('تعذر الاتصال', 'error');
+    btn.disabled = false;
+  }
+}
+
+/* ── Edit Document ───────────────────────────────── */
+function openEditModal(id, titleAr, title, type, catId, status, summary, version) {
+  document.getElementById('edit_doc_id').value = id;
+  document.getElementById('edit_title_ar').value = titleAr;
+  document.getElementById('edit_title').value = title;
+  document.getElementById('edit_type').value = type;
+  document.getElementById('edit_category').value = catId || '';
+  document.getElementById('edit_status').value = status;
+  document.getElementById('edit_summary').value = summary;
+  document.getElementById('edit_version').value = version;
+  openModal('editDocModal');
+}
+
+async function submitEdit() {
+  const id = document.getElementById('edit_doc_id').value;
+  const catVal = document.getElementById('edit_category').value;
+  const data = {
+    title_ar: document.getElementById('edit_title_ar').value,
+    title: document.getElementById('edit_title').value || document.getElementById('edit_title_ar').value,
+    doc_type: document.getElementById('edit_type').value,
+    category_id: catVal ? parseInt(catVal) : null,
+    status: document.getElementById('edit_status').value,
+    summary: document.getElementById('edit_summary').value || null,
+    version: document.getElementById('edit_version').value || '1.0',
+  };
+  const r = await api(`/api/v1/knowledge/documents/${id}`, { method:'PUT', body: JSON.stringify(data) });
+  if (r.ok) {
+    showToast('تم حفظ التعديلات', 'success');
+    setTimeout(() => location.reload(), 700);
+  } else {
+    const err = await r.json();
+    showToast(err.detail || 'حدث خطأ', 'error');
+  }
+}
+
+/* ── Categories ──────────────────────────────────── */
+async function submitCategory() {
+  const nameAr = document.getElementById('cat_name_ar').value.trim();
+  if (!nameAr) { showToast('الاسم مطلوب', 'error'); return; }
+  const data = {
+    name: document.getElementById('cat_name').value || nameAr,
+    name_ar: nameAr,
+    description: document.getElementById('cat_desc').value || null,
+  };
+  const r = await api('/api/v1/knowledge/categories', { method:'POST', body: JSON.stringify(data) });
+  if (r.ok) {
+    showToast('تم إنشاء الفئة', 'success');
+    setTimeout(() => location.reload(), 700);
+  } else {
+    const err = await r.json();
+    showToast(err.detail || 'حدث خطأ', 'error');
+  }
+}
+
+function openEditCatModal(id, name, nameAr, desc) {
+  document.getElementById('edit_cat_id').value = id;
+  document.getElementById('edit_cat_name').value = name;
+  document.getElementById('edit_cat_name_ar').value = nameAr;
+  document.getElementById('edit_cat_desc').value = desc;
+  openModal('editCatModal');
+}
+
+async function submitEditCategory() {
+  const id = document.getElementById('edit_cat_id').value;
+  const nameAr = document.getElementById('edit_cat_name_ar').value.trim();
+  const data = {
+    name: document.getElementById('edit_cat_name').value || nameAr,
+    name_ar: nameAr || null,
+    description: document.getElementById('edit_cat_desc').value || null,
+  };
+  const r = await api(`/api/v1/knowledge/categories/${id}`, { method:'PUT', body: JSON.stringify(data) });
+  if (r.ok) {
+    showToast('تم تعديل الفئة', 'success');
+    setTimeout(() => location.reload(), 700);
+  } else {
+    const err = await r.json();
+    showToast(err.detail || 'حدث خطأ', 'error');
+  }
 }
 </script>
 {% endblock %}

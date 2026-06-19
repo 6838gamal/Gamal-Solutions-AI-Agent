@@ -1,17 +1,24 @@
 from datetime import datetime
 from pydantic import BaseModel
+from typing import Optional
 from app.domains.knowledge.models import DocumentType, KnowledgeStatus
 
 
 class CategoryBase(BaseModel):
     name: str
-    name_ar: str | None = None
-    description: str | None = None
-    parent_id: int | None = None
+    name_ar: Optional[str] = None
+    description: Optional[str] = None
+    parent_id: Optional[int] = None
 
 
 class CategoryCreate(CategoryBase):
     pass
+
+
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    name_ar: Optional[str] = None
+    description: Optional[str] = None
 
 
 class CategoryOut(CategoryBase):
@@ -24,15 +31,15 @@ class CategoryOut(CategoryBase):
 
 class DocumentBase(BaseModel):
     title: str
-    title_ar: str | None = None
-    content: str | None = None
-    summary: str | None = None
+    title_ar: Optional[str] = None
+    content: Optional[str] = None
+    summary: Optional[str] = None
     doc_type: DocumentType = DocumentType.MANUAL
-    source: str | None = None
+    source: Optional[str] = None
     version: str = "1.0"
     confidence_score: float = 1.0
     tags: list = []
-    category_id: int | None = None
+    category_id: Optional[int] = None
 
 
 class DocumentCreate(DocumentBase):
@@ -40,17 +47,24 @@ class DocumentCreate(DocumentBase):
 
 
 class DocumentUpdate(BaseModel):
-    title: str | None = None
-    content: str | None = None
-    summary: str | None = None
-    status: KnowledgeStatus | None = None
-    tags: list | None = None
-    category_id: int | None = None
+    title: Optional[str] = None
+    title_ar: Optional[str] = None
+    content: Optional[str] = None
+    summary: Optional[str] = None
+    status: Optional[KnowledgeStatus] = None
+    doc_type: Optional[DocumentType] = None
+    tags: Optional[list] = None
+    category_id: Optional[int] = None
+    version: Optional[str] = None
 
 
 class DocumentOut(DocumentBase):
     id: int
     status: KnowledgeStatus
+    file_name: Optional[str] = None
+    file_size: Optional[int] = 0
+    is_trained: bool = False
+    trained_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

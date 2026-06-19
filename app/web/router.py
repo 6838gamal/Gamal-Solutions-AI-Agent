@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import Optional
 import jwt
+import logging
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import create_access_token, verify_password
@@ -16,6 +17,8 @@ from app.domains.workflows import models as wf_models
 from app.domains.audit import models as audit_models
 
 import os
+
+logger = logging.getLogger(__name__)
 
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "../templates"))
 
@@ -64,6 +67,11 @@ def login_page(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("login.html", {"request": request, "error": None})
 
 
+def _is_https(request: Request) -> bool:
+    proto = request.headers.get("x-forwarded-proto", "")
+    return proto == "https" or str(request.url).startswith("https")
+
+
 @router.post("/login", response_class=HTMLResponse)
 def login_submit(
     request: Request,
@@ -71,27 +79,40 @@ def login_submit(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    user = auth_service.authenticate_user(db, username, password)
-    if not user or not user.is_active:
-        return templates.TemplateResponse(
-            "login.html", {"request": request, "error": "بيانات الدخول غير صحيحة"}
+    try:
+        user = auth_service.authenticate_user(db, username, password)
+        if not user or not user.is_active:
+            return templates.TemplateResponse(
+                "login.html", {"request": request, "error": "بيانات الدخول غير صحيحة"},
+                status_code=200,
+            )
+        token = create_access_token(subject=user.id)
+        response = RedirectResponse(url="/dashboard", status_code=302)
+        secure = _is_https(request)
+        response.set_cookie(
+            key=COOKIE_NAME,
+            value=token,
+            httponly=True,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+            secure=secure,
+            path="/",
         )
-    token = create_access_token(subject=user.id)
-    response = RedirectResponse(url="/dashboard", status_code=302)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        httponly=True,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",
-    )
-    return response
+        return response
+    except Exception as e:
+        logger.error(f"Login error: {e}", exc_info=True)
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": f"خطأ في الخادم، يرجى المحاولة لاحقاً"},
+            status_code=500,
+        )
 
 
 @router.get("/logout")
-def logout():
+def logout(request: Request):
     response = RedirectResponse(url="/login", status_code=302)
-    response.delete_cookie(COOKIE_NAME)
+    secure = _is_https(request)
+    response.delete_cookie(COOKIE_NAME, path="/", secure=secure)
     return response
 
 

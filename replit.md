@@ -1,44 +1,76 @@
-# Gamal Solutions – Enterprise AI Platform
+# جمال سولوشنز — منصة الذكاء الاصطناعي المؤسسي
 
-A full-stack Business Intelligence & AI Automation Platform (العقل الرقمي المؤسسي).
+منصة ذكاء اصطناعي مؤسسية كاملة مبنية بـ Python + FastAPI + Jinja2.
 
-## Architecture
+## هيكل المشروع
 
-- **Frontend**: React 18 + Vite + Tailwind CSS — port 5000
-- **Backend**: FastAPI + SQLAlchemy — port 8000
-- **Database**: PostgreSQL (Render cloud) via `DB_URL` env var
-- **Language**: Arabic RTL UI with Cairo font
+```
+/
+├── app/                    # تطبيق FastAPI الرئيسي
+│   ├── core/               # الإعدادات، قاعدة البيانات، الأمان
+│   ├── api/v1/             # مسارات API (JSON)
+│   ├── web/                # مسارات الواجهة (HTML)
+│   ├── templates/          # قوالب Jinja2 (HTML)
+│   └── domains/            # النماذج والمنطق لكل وحدة
+│       ├── auth/           # المصادقة والمستخدمون
+│       ├── agents/         # وكلاء الذكاء الاصطناعي
+│       ├── customers/      # CRM والعملاء
+│       ├── conversations/  # المحادثات متعددة القنوات
+│       ├── knowledge/      # قاعدة المعرفة
+│       ├── workflows/      # سير العمل والمهام
+│       ├── analytics/      # التحليلات
+│       └── audit/          # سجل التدقيق
+├── static/                 # الملفات الثابتة (CSS، favicon)
+├── run.py                  # نقطة التشغيل
+├── requirements.txt        # المتطلبات Python
+└── Dockerfile              # Docker للنشر
 
-## Running the Project
+```
 
-1. **Backend** (`Backend API` workflow): `cd backend && python3 run.py`
-2. **Frontend** (`Start application` workflow): `cd frontend && npm run dev`
+## التشغيل
 
-## Default Login
+```bash
+python3 run.py
+```
 
-- Username: `admin`
-- Password: `Admin@2024!`
+التطبيق يعمل على: **http://localhost:5000**
 
-## Modules
+## بيانات الدخول الافتراضية
 
-| Domain | Description |
-|--------|-------------|
-| Auth + RBAC | JWT auth, users, roles, permissions |
-| AI Agents | Sales, Customer Service, Operations, Executive agents |
-| Knowledge Base | Documents, categories, search |
-| Customers | CRM with scoring and opportunities |
-| Conversations | Multi-channel messaging hub |
-| Workflows | Business process automation |
-| Tasks | Task management and tracking |
-| Analytics | Dashboard stats and charts |
-| Audit Logs | Full audit trail |
+| الحقل | القيمة |
+|-------|--------|
+| اسم المستخدم | `admin` |
+| كلمة المرور | `Admin@2024!` |
 
-## Pages
+## التقنيات المستخدمة
 
-Login → Dashboard → Agents → Knowledge → Customers → Conversations → Workflows → Tasks → Analytics → Audit Logs → Users → Settings
+| الطبقة | التقنية |
+|--------|---------|
+| الخادم | FastAPI + Uvicorn |
+| الواجهة | Jinja2 + Tailwind CSS (CDN) + HTMX |
+| قاعدة البيانات | PostgreSQL (Render) عبر SQLAlchemy |
+| المصادقة | JWT في Cookie آمن (HTTP-only) |
+| النشر | Docker |
+
+## الوحدات
+
+| الوحدة | المسار |
+|--------|--------|
+| لوحة التحكم | `/dashboard` |
+| وكلاء الذكاء الاصطناعي | `/agents` |
+| العملاء CRM | `/customers` |
+| المحادثات | `/conversations` |
+| قاعدة المعرفة | `/knowledge` |
+| سير العمل | `/workflows` |
+| المهام | `/tasks` |
+| التحليلات | `/analytics` |
+| سجل التدقيق | `/audit` |
+| المستخدمون | `/users` |
+| الإعدادات | `/settings` |
 
 ## User Preferences
 
 - Arabic RTL interface as primary language
 - Enterprise-grade design with blue color scheme
 - Cairo font for Arabic typography
+- Pure Python/FastAPI — no React or Node.js

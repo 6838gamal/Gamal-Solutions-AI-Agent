@@ -48,6 +48,16 @@
       </div>
     </div>
     <div class="flex items-center gap-2 mr-auto">
+      <!-- Auto-sync indicator -->
+      <template x-if="status === 'connected'">
+        <div class="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-50 px-2.5 py-1.5 rounded-lg">
+          <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block"></span>
+          <span>تحديث تلقائي كل 60 ث</span>
+          <template x-if="lastSyncTime">
+            <span class="text-slate-500 font-medium" x-text="'· آخر مزامنة ' + lastSyncTime"></span>
+          </template>
+        </div>
+      </template>
       <template x-if="status === 'connected'">
         <div class="flex gap-2">
           <button @click="syncMessages()" class="btn-primary text-xs py-1.5 px-3" :disabled="syncing">
@@ -884,7 +894,43 @@ function telegramApp() {
     ruleForm: { rule_name: '', target_type: 'all', target_chat_id: '', target_sender_username: '', keywords: '', reply_mode: 'manual', reply_template: '', reply_delay_seconds: 0, max_replies_per_hour: 10 },
     replyModal: { open: false, messageId: null, originalMsg: '', senderName: '', chatTitle: '', text: '', sending: false },
 
-    init() { this.loadMarketReport(); },
+    autoSyncing: false,
+    lastSyncTime: null,
+    newMsgAlert: false,
+
+    init() {
+      this.loadMarketReport();
+      if (this.status === 'connected') {
+        this._startAutoPoll();
+      }
+    },
+
+    _startAutoPoll() {
+      this._knownTotal = this.totalMessages;
+      setInterval(async () => {
+        try {
+          const r = await fetch('/api/v1/telegram/messages/count');
+          const data = await r.json();
+          if (!data.connected) return;
+          if (data.total > this._knownTotal) {
+            const diff = data.total - this._knownTotal;
+            this._knownTotal = data.total;
+            await this._refreshMessages();
+            this.lastSyncTime = new Date().toLocaleTimeString('ar-SA');
+            this.showToast(`📩 وصلت ${diff} رسالة جديدة تلقائياً`, 'success');
+          }
+        } catch(e) { /* silent */ }
+      }, 30000);
+    },
+
+    async _refreshMessages() {
+      try {
+        const r = await fetch('/api/v1/telegram/messages/list');
+        const data = await r.json();
+        this.messages = data.messages;
+        this.totalMessages = data.messages.length;
+      } catch(e) { /* silent */ }
+    },
 
     statusLabel() {
       const labels = { connected: '✅ متصل بتيليجرام', disconnected: '⚫ غير متصل', pending_code: '⏳ في انتظار رمز التحقق', error: '❌ خطأ في الاتصال' };
@@ -1020,14 +1066,20 @@ function telegramApp() {
       const data = await r.json();
       this.syncing = false;
       this.showToast(data.message, data.success ? 'success' : 'error');
-      if (data.success && data.count > 0) setTimeout(() => location.reload(), 1500);
+      if (data.success) {
+        await this._refreshMessages();
+        this._knownTotal = this.totalMessages;
+        this.lastSyncTime = new Date().toLocaleTimeString('ar-SA');
+      }
     },
 
     async analyzeMessages() {
       const r = await fetch('/api/v1/telegram/messages/analyze', { method: 'POST' });
       const data = await r.json();
       this.showToast(data.message, data.success ? 'success' : 'error');
-      if (data.success && data.count > 0) setTimeout(() => location.reload(), 1500);
+      if (data.success && data.count > 0) {
+        await this._refreshMessages();
+      }
     },
 
     openReplyModal(msg) {

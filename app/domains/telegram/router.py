@@ -71,6 +71,50 @@ def disconnect(db: Session = Depends(get_db)):
     return JSONResponse({"success": True, "message": "تم قطع الاتصال"})
 
 
+@router.get("/messages/count")
+def messages_count(db: Session = Depends(get_db)):
+    """Lightweight poll endpoint — returns current message count and unread count."""
+    account = tg_service.get_account(db)
+    if not account:
+        return JSONResponse({"total": 0, "unread": 0, "connected": False})
+    from app.domains.telegram.models import TelegramMessage
+    total = db.query(TelegramMessage).filter_by(account_id=account.id).count()
+    unread = db.query(TelegramMessage).filter_by(account_id=account.id, is_read=False, direction="incoming").count()
+    return JSONResponse({
+        "total": total,
+        "unread": unread,
+        "connected": account.status == tg_models.TelegramConnectionStatus.CONNECTED,
+    })
+
+
+@router.get("/messages/list")
+def list_messages(db: Session = Depends(get_db)):
+    """Return all messages as JSON for live UI refresh."""
+    account = tg_service.get_account(db)
+    if not account:
+        return JSONResponse({"messages": []})
+    from app.domains.telegram.models import TelegramMessage
+    msgs = db.query(TelegramMessage).filter_by(account_id=account.id)\
+             .order_by(TelegramMessage.received_at.desc()).limit(500).all()
+    def _serialize(m):
+        return {
+            "id": m.id,
+            "chat_id": m.chat_id,
+            "chat_title": m.chat_title or "",
+            "chat_type": m.chat_type or "",
+            "sender_name": m.sender_name or "",
+            "sender_username": m.sender_username or "",
+            "content": m.content or "",
+            "direction": m.direction or "incoming",
+            "is_read": m.is_read,
+            "is_analyzed": m.is_analyzed,
+            "reply_sent": m.reply_sent,
+            "analysis_result": m.analysis_result or {},
+            "received_at": m.received_at.isoformat() if m.received_at else None,
+        }
+    return JSONResponse({"messages": [_serialize(m) for m in msgs]})
+
+
 @router.post("/messages/sync")
 def sync_messages(db: Session = Depends(get_db)):
     account = tg_service.get_account(db)

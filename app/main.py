@@ -152,6 +152,35 @@ def startup():
             print(f"DB init warning: {e}")
     threading.Thread(target=init_db, daemon=True).start()
 
+    # ── Auto-sync Telegram messages every 60 seconds ──────────────────────
+    import time
+    def telegram_auto_sync():
+        # Wait for DB to be ready first
+        time.sleep(15)
+        while True:
+            try:
+                from app.domains.telegram.models import TelegramAccount, TelegramConnectionStatus
+                from app.domains.telegram.service import sync_messages, analyze_pending
+                db = SessionLocal()
+                try:
+                    account = db.query(TelegramAccount).filter_by(
+                        status=TelegramConnectionStatus.CONNECTED
+                    ).first()
+                    if account:
+                        new_count = sync_messages(db, account)
+                        if new_count > 0:
+                            analyze_pending(db, account)
+                            print(f"[AutoSync] استُقبلت {new_count} رسالة جديدة وتم تحليلها تلقائياً")
+                except Exception as sync_err:
+                    print(f"[AutoSync] خطأ: {sync_err}")
+                finally:
+                    db.close()
+            except Exception as outer_err:
+                print(f"[AutoSync] خطأ خارجي: {outer_err}")
+            time.sleep(60)
+
+    threading.Thread(target=telegram_auto_sync, daemon=True).start()
+
 
 @app.get("/health")
 def health():

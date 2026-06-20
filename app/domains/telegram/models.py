@@ -25,6 +25,8 @@ class TelegramAccount(Base):
     telegram_username = Column(String(100))
     telegram_first_name = Column(String(100))
     error_message = Column(Text)
+    market_analysis = Column(JSON, default=None)
+    market_analysis_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     messages = relationship("TelegramMessage", back_populates="account")

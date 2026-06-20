@@ -25,7 +25,7 @@
 </div>
 
 <!-- Charts 2x2 -->
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
   <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
     <h3 class="font-bold text-slate-800 mb-4">حالة الوكلاء</h3>
     <canvas id="agentsChart" height="240"></canvas>
@@ -43,6 +43,239 @@
     <canvas id="tasksChart" height="240"></canvas>
   </div>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- TELEGRAM: فرص وثغرات السوق -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="mb-4 flex items-center justify-between">
+  <div>
+    <h2 class="text-xl font-black text-slate-800 flex items-center gap-2">
+      <svg class="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.022 9.531c-.149.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.885.69z"/></svg>
+      تيليجرام — فرص وثغرات السوق
+    </h2>
+    <p class="text-slate-500 text-sm mt-0.5">
+      {% if tg_market_at %}آخر تحليل: {{ tg_market_at }}{% else %}لم يتم تشغيل التحليل بعد{% endif %}
+      · {{ tg_total_msgs }} رسالة محفوظة
+    </p>
+  </div>
+  <a href="/telegram" class="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
+    فتح تيليجرام
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+  </a>
+</div>
+
+{% if not tg_market %}
+<div class="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center mb-8">
+  <div class="text-5xl mb-3">📊</div>
+  <h3 class="font-bold text-slate-700 text-lg mb-2">لا يوجد تحليل سوق بعد</h3>
+  <p class="text-slate-500 text-sm mb-4">انتقل إلى صفحة تيليجرام ← تبويب التحليل ← اضغط "تحليل السوق الآن"</p>
+  {% if tg_total_msgs == 0 %}
+  <p class="text-sm text-amber-600 font-medium">⚠️ لم يتم جلب أي رسائل بعد — افتح تيليجرام واجلب الرسائل أولاً</p>
+  {% endif %}
+</div>
+{% else %}
+
+<!-- Summary banner -->
+<div class="bg-gradient-to-l from-blue-600 to-indigo-700 rounded-2xl p-5 text-white mb-6">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <div class="text-blue-200 text-sm">حرارة السوق</div>
+      <div class="text-2xl font-black">{{ tg_market.summary.market_heat }}</div>
+      <div class="text-blue-200 text-sm mt-1">{{ tg_market.summary.total_messages }} رسالة محللة</div>
+    </div>
+    <div class="flex gap-4">
+      <div class="bg-white/15 rounded-xl px-4 py-3 text-center">
+        <div class="text-2xl font-black">{{ tg_market.opportunities | length }}</div>
+        <div class="text-blue-200 text-xs mt-0.5">فرصة</div>
+      </div>
+      <div class="bg-white/15 rounded-xl px-4 py-3 text-center">
+        <div class="text-2xl font-black">{{ tg_market.gaps | length }}</div>
+        <div class="text-blue-200 text-xs mt-0.5">ثغرة</div>
+      </div>
+      <div class="bg-white/15 rounded-xl px-4 py-3 text-center">
+        <div class="text-2xl font-black">{{ tg_market.summary.overall_score }}%</div>
+        <div class="text-blue-200 text-xs mt-0.5">مؤشر السوق</div>
+      </div>
+    </div>
+  </div>
+  {% if tg_market.summary.insights %}
+  <div class="mt-4 space-y-1 border-t border-white/20 pt-4">
+    {% for insight in tg_market.summary.insights %}
+    <div class="flex items-start gap-2 text-sm text-blue-100">
+      <span class="text-blue-300 font-bold mt-0.5">→</span>
+      <span>{{ insight }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+  <!-- Opportunities -->
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-slate-800">🎯 فرص السوق</h3>
+      <span class="text-xs font-bold bg-green-100 text-green-700 px-2.5 py-1 rounded-full">{{ tg_market.opportunities | length }} فرصة</span>
+    </div>
+    <div class="divide-y divide-slate-50">
+      {% for opp in tg_market.opportunities %}
+      <div class="px-5 py-4">
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <div class="font-semibold text-slate-800 text-sm">{{ opp.label }}</div>
+            <div class="text-xs text-slate-500 mt-0.5">تكررت {{ opp.frequency }} مرة · {{ opp.strength }}</div>
+          </div>
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0
+            {% if opp.score > 60 %}bg-red-100 text-red-700{% elif opp.score > 30 %}bg-amber-100 text-amber-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+            {{ opp.score }}
+          </div>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2">
+          <div class="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" style="width:{{ opp.score }}%"></div>
+        </div>
+        <div class="bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-800">
+          <span class="font-semibold">الإجراء: </span>{{ opp.action }}
+        </div>
+        {% if opp.top_phrases %}
+        <div class="flex flex-wrap gap-1.5 mt-2">
+          {% for p in opp.top_phrases[:4] %}
+          <span class="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">{{ p }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="px-5 py-8 text-center text-slate-400 text-sm">لا توجد فرص مكتشفة بعد</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Gaps -->
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-slate-800">🕳️ ثغرات السوق</h3>
+      <span class="text-xs font-bold bg-red-100 text-red-700 px-2.5 py-1 rounded-full">{{ tg_market.gaps | length }} ثغرة</span>
+    </div>
+    <div class="divide-y divide-slate-50">
+      {% for gap in tg_market.gaps %}
+      <div class="px-5 py-4">
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <div class="font-semibold text-slate-800 text-sm">{{ gap.label }}</div>
+            <div class="text-xs mt-0.5
+              {% if gap.score > 70 %}text-red-600{% elif gap.score > 35 %}text-amber-600{% else %}text-green-600{% endif %}">
+              {{ gap.severity }}
+            </div>
+          </div>
+          <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0
+            {% if gap.score > 70 %}bg-red-100 text-red-700{% elif gap.score > 35 %}bg-amber-100 text-amber-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+            {{ gap.score }}
+          </div>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2">
+          <div class="h-1.5 rounded-full bg-gradient-to-r from-red-400 to-orange-400" style="width:{{ gap.score }}%"></div>
+        </div>
+        <div class="bg-amber-50 rounded-lg px-3 py-2 text-xs text-amber-800 mb-2">
+          <span class="font-semibold">الفرصة الكامنة: </span>{{ gap.opportunity }}
+        </div>
+        {% if gap.hot_topics %}
+        <div class="flex flex-wrap gap-1.5">
+          {% for t in gap.hot_topics[:5] %}
+          <span class="bg-red-50 text-red-700 text-xs px-2 py-0.5 rounded-full">{{ t }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="px-5 py-8 text-center text-slate-400 text-sm">لا ثغرات واضحة — الوضع السوقي إيجابي</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Hot Topics + Demand Signals -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+  <!-- Hot Topics -->
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden lg:col-span-2">
+    <div class="px-5 py-4 border-b border-slate-100">
+      <h3 class="font-bold text-slate-800">🔥 أبرز المواضيع السوقية</h3>
+      <p class="text-xs text-slate-500 mt-0.5">مرتبة حسب الأهمية الإحصائية (TF-IDF)</p>
+    </div>
+    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {% for topic in tg_market.topics[:8] %}
+      <div class="flex items-center gap-3 bg-slate-50 rounded-xl p-3">
+        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0
+          {% if loop.index == 1 %}bg-amber-400 text-white{% elif loop.index <= 3 %}bg-slate-300 text-slate-700{% else %}bg-slate-100 text-slate-500{% endif %}">
+          {{ loop.index }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-slate-800 text-sm truncate">{{ topic.term }}</div>
+          <div class="flex gap-1 mt-0.5 flex-wrap">
+            {% for co in topic.co_terms[:2] %}
+            <span class="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{{ co }}</span>
+            {% endfor %}
+            <span class="text-xs px-1.5 py-0.5 rounded
+              {% if topic.dominant_sentiment == 'إيجابي' %}bg-green-50 text-green-700
+              {% elif topic.dominant_sentiment == 'سلبي' %}bg-red-50 text-red-700
+              {% else %}bg-slate-100 text-slate-500{% endif %}">
+              {{ topic.dominant_sentiment }}
+            </span>
+          </div>
+        </div>
+        <div class="text-xs text-slate-400 flex-shrink-0">{{ topic.message_count }}↗</div>
+      </div>
+      {% else %}
+      <div class="col-span-2 text-center text-slate-400 py-8">لا توجد مواضيع</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Demand signals + Trending -->
+  <div class="space-y-4">
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-100">
+        <h3 class="font-bold text-slate-800 text-sm">🛒 إشارات الطلب</h3>
+      </div>
+      <div class="p-4 space-y-2">
+        {% for sig in tg_market.demand_signals %}
+        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+          <div class="font-semibold text-emerald-800 text-xs mb-1">{{ sig.label }}</div>
+          <div class="flex flex-wrap gap-1">
+            {% for item in sig.top_items[:4] %}
+            <span class="bg-white border border-emerald-200 text-emerald-700 text-xs px-1.5 py-0.5 rounded-full">{{ item.term }} ×{{ item.count }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% else %}
+        <p class="text-slate-400 text-xs text-center py-4">لم تُكتشف إشارات</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-100">
+        <h3 class="font-bold text-slate-800 text-sm">📈 مواضيع صاعدة</h3>
+      </div>
+      <div class="p-4 space-y-2">
+        {% for t in tg_market.trends.trending[:5] %}
+        <div class="flex justify-between items-center">
+          <div class="flex items-center gap-1.5">
+            <span class="text-green-600 font-bold text-xs">{{ t.direction }}</span>
+            <span class="text-sm font-medium text-slate-700">{{ t.term }}</span>
+          </div>
+          <span class="text-xs text-slate-400">×{{ t.ratio }}</span>
+        </div>
+        {% else %}
+        <p class="text-slate-400 text-xs text-center py-4">لا توجد مواضيع صاعدة بعد</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

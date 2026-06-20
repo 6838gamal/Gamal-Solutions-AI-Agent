@@ -126,6 +126,8 @@ def startup():
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW()
                 )""",
+                "ALTER TABLE telegram_accounts ADD COLUMN IF NOT EXISTS market_analysis JSONB",
+                "ALTER TABLE telegram_accounts ADD COLUMN IF NOT EXISTS market_analysis_at TIMESTAMP",
             ]
             with engine.connect() as conn:
                 for sql in migrations:

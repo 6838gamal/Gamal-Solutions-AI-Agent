@@ -326,6 +326,12 @@ def analytics_page(request: Request, db: Session = Depends(get_db)):
     for s in wf_models.TaskStatus:
         task_by_status[s.value] = db.query(wf_models.Task).filter(wf_models.Task.status == s).count()
 
+    # Telegram market intelligence
+    tg_account = db.query(tg_models.TelegramAccount).first()
+    tg_market = tg_account.market_analysis if tg_account and tg_account.market_analysis else None
+    tg_market_at = (tg_account.market_analysis_at.strftime("%Y-%m-%d %H:%M") if tg_account and tg_account.market_analysis_at else None)
+    tg_total_msgs = db.query(tg_models.TelegramMessage).count() if tg_account else 0
+
     return templates.TemplateResponse("analytics.html", {
         "request": request, "user": user, "page": "analytics",
         "agent_by_status": agent_by_status,
@@ -336,6 +342,9 @@ def analytics_page(request: Request, db: Session = Depends(get_db)):
         "total_customers": db.query(customer_models.Customer).count(),
         "total_conversations": db.query(conv_models.Conversation).count(),
         "total_tasks": db.query(wf_models.Task).count(),
+        "tg_market": tg_market,
+        "tg_market_at": tg_market_at,
+        "tg_total_msgs": tg_total_msgs,
     })
 
 

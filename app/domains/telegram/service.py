@@ -239,6 +239,30 @@ def sync_messages(db: Session, account: TelegramAccount):
     return count
 
 
+def run_market_analysis(db: Session, account: TelegramAccount) -> dict:
+    """Run deep market intelligence analysis on all stored messages."""
+    from app.domains.telegram.analyzer import run_deep_analysis
+    msgs = db.query(TelegramMessage).filter_by(account_id=account.id).all()
+    msg_dicts = []
+    for m in msgs:
+        msg_dicts.append({
+            "id": m.id,
+            "content": m.content or "",
+            "direction": m.direction,
+            "chat_title": m.chat_title,
+            "chat_type": m.chat_type,
+            "sender_name": m.sender_name,
+            "received_at": m.received_at.isoformat() if m.received_at else None,
+            "analysis_result": m.analysis_result or {},
+            "is_analyzed": m.is_analyzed,
+        })
+    result = run_deep_analysis(msg_dicts)
+    account.market_analysis = result
+    account.market_analysis_at = __import__("datetime").datetime.utcnow()
+    db.commit()
+    return result
+
+
 def analyze_message(content: str) -> dict:
     content_lower = content.lower() if content else ""
     sentiment = "محايد"

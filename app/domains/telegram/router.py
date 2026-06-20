@@ -89,6 +89,32 @@ def analyze_messages(db: Session = Depends(get_db)):
     return JSONResponse({"success": True, "message": f"تم تحليل {count} رسالة", "count": count})
 
 
+@router.post("/analysis/market")
+def run_market_analysis(db: Session = Depends(get_db)):
+    """Run deep market intelligence analysis on all stored Telegram messages."""
+    account = tg_service.get_account(db)
+    if not account:
+        return JSONResponse({"success": False, "message": "لا يوجد حساب مربوط"}, status_code=400)
+    total_msgs = db.query(tg_models.TelegramMessage).filter_by(account_id=account.id).count()
+    if total_msgs == 0:
+        return JSONResponse({"success": False, "message": "لا توجد رسائل — اجلب الرسائل أولاً"}, status_code=400)
+    result = tg_service.run_market_analysis(db, account)
+    return JSONResponse({"success": True, "result": result, "message": f"تم تحليل {total_msgs} رسالة بنجاح"})
+
+
+@router.get("/analysis/market")
+def get_market_analysis(db: Session = Depends(get_db)):
+    """Get the last stored market intelligence report."""
+    account = tg_service.get_account(db)
+    if not account or not account.market_analysis:
+        return JSONResponse({"has_data": False, "result": None})
+    return JSONResponse({
+        "has_data": True,
+        "result": account.market_analysis,
+        "analyzed_at": account.market_analysis_at.isoformat() if account.market_analysis_at else None,
+    })
+
+
 @router.post("/messages/{message_id}/reply")
 def send_reply(
     message_id: int,

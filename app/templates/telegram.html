@@ -419,11 +419,11 @@
     <template x-if="marketReport">
       <div class="space-y-6">
 
-        <!-- Executive Summary -->
-        <div class="bg-gradient-to-l from-blue-600 to-indigo-700 rounded-2xl p-6 text-white">
+        <!-- ═══ 1. EXECUTIVE DASHBOARD (حرج — أول ما تراه) ═══ -->
+        <div class="bg-gradient-to-l from-blue-700 to-indigo-800 rounded-2xl p-6 text-white">
           <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
             <div>
-              <div class="text-blue-200 text-sm font-medium mb-1">تقرير ذكاء السوق</div>
+              <div class="text-blue-200 text-xs font-semibold uppercase tracking-widest mb-1">لوحة التحكم التنفيذية</div>
               <h3 class="font-black text-2xl" x-text="marketReport.summary?.market_heat || '—'"></h3>
               <p class="text-blue-200 text-sm mt-1" x-text="'تم تحليل ' + (marketReport.summary?.total_messages || 0) + ' رسالة'"></p>
             </div>
@@ -432,24 +432,21 @@
               <div class="text-blue-200 text-xs mt-1">مؤشر الحرارة السوقية</div>
             </div>
           </div>
-          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div class="bg-white/15 rounded-xl p-3 text-center">
-              <div class="text-xl font-black" x-text="marketReport.opportunities?.length || 0"></div>
-              <div class="text-blue-200 text-xs mt-0.5">فرص مكتشفة</div>
-            </div>
-            <div class="bg-white/15 rounded-xl p-3 text-center">
-              <div class="text-xl font-black" x-text="marketReport.gaps?.length || 0"></div>
-              <div class="text-blue-200 text-xs mt-0.5">ثغرات في السوق</div>
-            </div>
-            <div class="bg-white/15 rounded-xl p-3 text-center">
-              <div class="text-xl font-black" x-text="marketReport.topics?.length || 0"></div>
-              <div class="text-blue-200 text-xs mt-0.5">مواضيع رئيسية</div>
-            </div>
-            <div class="bg-white/15 rounded-xl p-3 text-center">
-              <div class="text-xl font-black" x-text="marketReport.trends?.trending?.length || 0"></div>
-              <div class="text-blue-200 text-xs mt-0.5">مواضيع صاعدة</div>
-            </div>
+
+          <!-- 8-row executive table -->
+          <div class="bg-white/10 rounded-xl overflow-hidden">
+            <table class="w-full text-sm">
+              <template x-for="row in (marketReport.summary?.rows || [])" :key="row.label">
+                <tr class="border-b border-white/10 hover:bg-white/5 transition-colors">
+                  <td class="px-4 py-2.5 text-blue-200 font-medium whitespace-nowrap w-44">
+                    <span x-text="row.icon + ' ' + row.label"></span>
+                  </td>
+                  <td class="px-4 py-2.5 text-white font-semibold" x-text="row.value || '—'"></td>
+                </tr>
+              </template>
+            </table>
           </div>
+
           <!-- Insights -->
           <template x-if="marketReport.summary?.insights?.length">
             <div class="mt-4 space-y-1.5">
@@ -461,6 +458,141 @@
               </template>
             </div>
           </template>
+
+          <!-- Counters -->
+          <div class="grid grid-cols-4 gap-3 mt-4">
+            <div class="bg-white/15 rounded-xl p-3 text-center">
+              <div class="text-xl font-black" x-text="marketReport.opportunities?.length || 0"></div>
+              <div class="text-blue-200 text-xs mt-0.5">فرص مكتشفة</div>
+            </div>
+            <div class="bg-white/15 rounded-xl p-3 text-center">
+              <div class="text-xl font-black" x-text="marketReport.gaps?.length || 0"></div>
+              <div class="text-blue-200 text-xs mt-0.5">ثغرات السوق</div>
+            </div>
+            <div class="bg-white/15 rounded-xl p-3 text-center">
+              <div class="text-xl font-black" x-text="marketReport.priority_matrix?.filter(p=>p.class==='A').length || 0"></div>
+              <div class="text-blue-200 text-xs mt-0.5">🔴 أولوية A</div>
+            </div>
+            <div class="bg-white/15 rounded-xl p-3 text-center">
+              <div class="text-xl font-black" x-text="marketReport.keyword_categories?.length || 0"></div>
+              <div class="text-blue-200 text-xs mt-0.5">فئات نشطة</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ 2. PRIORITY MATRIX A/B/C/D (مهم) ═══ -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-slate-800">🎯 مصفوفة الأولويات</h3>
+              <p class="text-xs text-slate-500 mt-0.5">الأولوية = شدة الألم × التكرار × المتضررين × احتمالية الدفع</p>
+            </div>
+            <div class="flex gap-2 text-xs font-semibold">
+              <span class="bg-red-100 text-red-700 px-2 py-1 rounded-lg">🔴 A = فوري</span>
+              <span class="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg">🟡 B = قوي</span>
+              <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg">🔵 C = مستقبلي</span>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-100">
+                  <th class="text-right px-5 py-3 font-semibold text-slate-600">الفرصة / الثغرة</th>
+                  <th class="text-right px-4 py-3 font-semibold text-slate-600">النوع</th>
+                  <th class="text-right px-4 py-3 font-semibold text-slate-600">التكرار</th>
+                  <th class="text-right px-4 py-3 font-semibold text-slate-600">النقاط</th>
+                  <th class="text-right px-4 py-3 font-semibold text-slate-600">الأولوية</th>
+                  <th class="text-right px-4 py-3 font-semibold text-slate-600">فرصة الذكاء الاصطناعي</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-50">
+                <template x-for="item in (marketReport.priority_matrix || [])" :key="item.label">
+                  <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-5 py-3">
+                      <div class="font-semibold text-slate-800 text-sm" x-text="item.label"></div>
+                      <div class="text-xs text-slate-500 mt-0.5" x-text="item.action"></div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class="text-xs px-2 py-1 rounded-full font-medium"
+                            :class="item.type === 'فرصة' ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'"
+                            x-text="item.type"></span>
+                    </td>
+                    <td class="px-4 py-3 font-bold text-slate-700" x-text="item.frequency"></td>
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2">
+                        <div class="w-12 bg-slate-100 rounded-full h-1.5">
+                          <div class="h-1.5 rounded-full transition-all"
+                               :class="item.score >= 70 ? 'bg-red-500' : item.score >= 45 ? 'bg-amber-400' : item.score >= 20 ? 'bg-blue-400' : 'bg-slate-300'"
+                               :style="'width:' + item.score + '%'"></div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-600" x-text="item.score"></span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class="text-sm font-black" x-text="item.badge"></span>
+                      <div class="text-xs text-slate-500 mt-0.5" x-text="item.label_detail || item.label_class || ''"></div>
+                    </td>
+                    <td class="px-4 py-3 text-xs text-indigo-700 max-w-48" x-text="item.ai_opportunity || '—'"></td>
+                  </tr>
+                </template>
+                <template x-if="!marketReport.priority_matrix?.length">
+                  <tr><td colspan="6" class="text-center text-slate-400 py-8">لا توجد بيانات كافية لبناء المصفوفة</td></tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═══ 3. KEYWORD CATEGORIES (مفيد) ═══ -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100">
+            <h3 class="font-bold text-slate-800">🏷️ الكلمات المفتاحية المصنفة</h3>
+            <p class="text-xs text-slate-500 mt-0.5">مشاكل · طلبات · حلول · شراء · أتمتة · إدارة · نمو · دعم فني</p>
+          </div>
+          <div class="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <template x-for="cat in (marketReport.keyword_categories || [])" :key="cat.key">
+              <div class="rounded-xl border p-3 transition-shadow hover:shadow-sm"
+                   :class="{
+                     'border-red-200 bg-red-50': cat.color === 'red',
+                     'border-blue-200 bg-blue-50': cat.color === 'blue',
+                     'border-green-200 bg-green-50': cat.color === 'green',
+                     'border-emerald-200 bg-emerald-50': cat.color === 'emerald',
+                     'border-purple-200 bg-purple-50': cat.color === 'purple',
+                     'border-slate-200 bg-slate-50': cat.color === 'slate',
+                     'border-amber-200 bg-amber-50': cat.color === 'amber',
+                     'border-orange-200 bg-orange-50': cat.color === 'orange',
+                   }">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="font-bold text-sm text-slate-800" x-text="cat.label"></span>
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/70 text-slate-600"
+                        x-text="cat.msg_count + ' رسالة'"></span>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="kw in (cat.top_keywords || []).slice(0, 5)" :key="kw.word">
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-white/80 text-slate-700 font-medium">
+                      <span x-text="kw.word"></span>
+                      <span class="opacity-50 ms-0.5" x-text="'×' + kw.count"></span>
+                    </span>
+                  </template>
+                </div>
+                <div class="mt-2 text-xs font-medium"
+                     :class="{
+                       'text-red-600': cat.color === 'red',
+                       'text-blue-600': cat.color === 'blue',
+                       'text-green-600': cat.color === 'green',
+                       'text-emerald-600': cat.color === 'emerald',
+                       'text-purple-600': cat.color === 'purple',
+                       'text-slate-500': cat.color === 'slate',
+                       'text-amber-600': cat.color === 'amber',
+                       'text-orange-600': cat.color === 'orange',
+                     }"
+                     x-text="cat.intensity"></div>
+              </div>
+            </template>
+            <template x-if="!marketReport.keyword_categories?.length">
+              <div class="col-span-4 text-center text-slate-400 py-8">لا توجد كلمات مفتاحية — تحتاج لمزيد من الرسائل</div>
+            </template>
+          </div>
         </div>
 
         <!-- Opportunities + Gaps side by side -->

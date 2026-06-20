@@ -1,7 +1,9 @@
 """
 Deep Market Intelligence Engine for Telegram messages.
 Pure Python — no external AI/ML dependencies required.
-Produces actionable market opportunities, gaps, and demand signals.
+Follows the Knowledge Architecture framework:
+  Priority = Pain × Frequency × Affected Count × Payment Probability
+  Ranking: A (immediate) → B (strong) → C (future) → D (low value)
 """
 import re
 import math
@@ -10,7 +12,7 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from typing import List, Dict, Any
 
-# ─── Arabic + English stop words ─────────────────────────────────────────────
+# ─── Stop Words ───────────────────────────────────────────────────────────────
 
 STOP_WORDS = {
     "في","من","على","إلى","عن","مع","هذا","هذه","ذلك","تلك","هو","هي","هم","هن",
@@ -30,6 +32,59 @@ STOP_WORDS = {
     "just","so","if","as","out","can","get","one","all","more","also","than","its",
 }
 
+# ─── Keyword Category Banks ────────────────────────────────────────────────────
+
+KEYWORD_CATEGORIES: Dict[str, Dict] = {
+    "مشاكل": {
+        "label": "⚠️ مشاكل",
+        "color": "red",
+        "keywords": ["مشكلة","خطأ","معطل","لا يعمل","بطيء","سيء","رديء","فشل","ضعيف",
+                     "شكوى","error","problem","broken","fail","slow","issue","bug"],
+    },
+    "طلبات": {
+        "label": "🙋 طلبات",
+        "color": "blue",
+        "keywords": ["أريد","أبغى","أحتاج","محتاج","ممكن","ابغى","طلب","أطلب",
+                     "need","want","request","require","looking for","searching"],
+    },
+    "حلول": {
+        "label": "✅ حلول",
+        "color": "green",
+        "keywords": ["حل","يمكن","ممكن نحل","جرب","استخدم","نصيحة","توصية",
+                     "solution","fix","resolve","try","recommend","guide","tip"],
+    },
+    "شراء": {
+        "label": "🛒 شراء",
+        "color": "emerald",
+        "keywords": ["اشتري","سعر","ثمن","بكم","شراء","دفع","طلبية","order",
+                     "buy","purchase","price","cost","pay","checkout","invoice"],
+    },
+    "أتمتة": {
+        "label": "🤖 أتمتة",
+        "color": "purple",
+        "keywords": ["تلقائي","أتمتة","بوت","روبوت","جدولة","automate","bot",
+                     "automation","schedule","trigger","workflow","automatic"],
+    },
+    "إدارة": {
+        "label": "⚙️ إدارة",
+        "color": "slate",
+        "keywords": ["إدارة","تنظيم","متابعة","تقرير","لوحة","dashboard","manage",
+                     "admin","organize","monitor","track","report","control"],
+    },
+    "نمو": {
+        "label": "📈 نمو",
+        "color": "amber",
+        "keywords": ["نمو","توسع","تسويق","عملاء جدد","انتشار","grow","growth",
+                     "marketing","scale","expand","audience","reach","viral"],
+    },
+    "دعم_فني": {
+        "label": "🛠️ دعم فني",
+        "color": "orange",
+        "keywords": ["دعم","مساعدة","تواصل","رقم","واتساب","support","help",
+                     "contact","technical","assistance","service","helpdesk"],
+    },
+}
+
 # ─── Market Signal Keyword Banks ──────────────────────────────────────────────
 
 OPPORTUNITY_PATTERNS: Dict[str, Dict] = {
@@ -38,49 +93,70 @@ OPPORTUNITY_PATTERNS: Dict[str, Dict] = {
         "keywords": ["أريد","أبغى","أبحث","محتاج","محتاجة","ابغى","أحتاج","ممكن توفر",
                      "need","want","looking for","searching","where can i"],
         "action": "الرد الفوري على طلبات العملاء وتحويلها إلى صفقات",
-        "weight": 10,
+        "current_solutions": "ردود يدوية متأخرة",
+        "solution_weaknesses": "بطيء وغير منتظم",
+        "ai_opportunity": "ردود فورية بالذكاء الاصطناعي حسب نوع الطلب",
+        "weight": 10, "pain": 3, "payment_prob": 4,
     },
     "استفسار_سعر": {
         "label": "💰 استفسارات الأسعار",
         "keywords": ["كم سعر","كم ثمن","كم تكلفة","سعر","ثمن","بكم","تكلفة",
                      "price","cost","how much","pricing","fee","rate","quote"],
         "action": "توضيح هيكل الأسعار وتقديم عروض قيمة مباشرة",
-        "weight": 12,
+        "current_solutions": "قوائم أسعار ثابتة",
+        "solution_weaknesses": "لا تأخذ احتياج العميل بعين الاعتبار",
+        "ai_opportunity": "تسعير ديناميكي وعروض مخصصة بالذكاء الاصطناعي",
+        "weight": 12, "pain": 4, "payment_prob": 5,
     },
     "مقارنة_منافس": {
         "label": "🆚 مقارنات بالمنافسين",
         "keywords": ["مقارنة","أفضل من","أحسن","بديل","بدلاً من","غيره","بدل",
                      "versus","vs","compare","better than","alternative","instead"],
         "action": "تطوير نقاط التميز والرد الاستراتيجي على المقارنات",
-        "weight": 14,
+        "current_solutions": "ردود يدوية دفاعية",
+        "solution_weaknesses": "غير منهجية وتفتقر للبيانات",
+        "ai_opportunity": "تحليل منافسين تلقائي وردود مبنية على البيانات",
+        "weight": 14, "pain": 4, "payment_prob": 4,
     },
     "فرصة_شراكة": {
         "label": "🤝 فرص شراكة وتوزيع",
         "keywords": ["تعاون","شراكة","توزيع","وكالة","عمولة","وكيل","تجار",
                      "partner","partnership","collaborate","distribute","commission","wholesale","reseller"],
         "action": "التواصل المباشر مع المهتمين وبناء شبكة توزيع",
-        "weight": 18,
+        "current_solutions": "لا توجد قنوات شراكة رسمية",
+        "solution_weaknesses": "ضياع الفرص في الفوضى",
+        "ai_opportunity": "فرز وتأهيل الشركاء المحتملين تلقائياً",
+        "weight": 18, "pain": 3, "payment_prob": 5,
     },
     "طلب_ميزة": {
         "label": "✨ طلبات تطوير وميزات",
         "keywords": ["ممكن تضيف","هل يدعم","لو كان فيه","أتمنى","نتمنى","لو يوجد",
                      "can you add","does it support","wish","feature request","would be nice"],
         "action": "إدراج الطلبات في خارطة التطوير وإبلاغ العملاء بالتحديثات",
-        "weight": 8,
+        "current_solutions": "جمع ملاحظات يدوي",
+        "solution_weaknesses": "بدون أولوية أو قياس",
+        "ai_opportunity": "تصنيف وأولوية طلبات الميزات تلقائياً بالذكاء الاصطناعي",
+        "weight": 8, "pain": 2, "payment_prob": 3,
     },
     "مخاوف_جودة": {
         "label": "🔍 مخاوف الجودة والأصالة",
         "keywords": ["جودة","ضمان","أصلي","مغشوش","اصل","تقليد","مزور",
                      "quality","guarantee","original","authentic","warranty","fake","counterfeit"],
         "action": "تعزيز ضمانات الجودة والشهادات لبناء الثقة",
-        "weight": 11,
+        "current_solutions": "ضمانات نصية فقط",
+        "solution_weaknesses": "لا يوجد تحقق قابل للإثبات",
+        "ai_opportunity": "نظام تحقق رقمي وتوثيق أصالة بالذكاء الاصطناعي",
+        "weight": 11, "pain": 4, "payment_prob": 3,
     },
     "خدمة_عملاء": {
         "label": "📞 طلبات خدمة العملاء",
         "keywords": ["مساعدة","دعم","تواصل","تواصلوا","كلموني","رقم","واتساب",
                      "help","support","contact","reach out","phone","customer service"],
         "action": "تحسين قنوات الدعم وسرعة الاستجابة",
-        "weight": 9,
+        "current_solutions": "واتساب وتليجرام يدوي",
+        "solution_weaknesses": "تأخير في الرد وعدم الاتساق",
+        "ai_opportunity": "وكيل ذكاء اصطناعي يرد فورياً 24/7",
+        "weight": 9, "pain": 4, "payment_prob": 4,
     },
 }
 
@@ -89,35 +165,35 @@ GAP_DEFINITIONS: Dict[str, Dict] = {
         "label": "❓ أسئلة متكررة بلا إجابات",
         "keywords": ["؟","?","كيف","ماذا","هل","لماذا","متى","أين","من أين","ما هو"],
         "opportunity": "تحويل هذه الأسئلة لمحتوى تسويقي وصفحات FAQ تجذب العملاء",
-        "weight": 8,
+        "weight": 8, "pain": 3, "payment_prob": 2,
     },
     "شكاوى_متكررة": {
         "label": "⚠️ نقاط ألم متكررة",
         "keywords": ["مشكلة","خطأ","لا يعمل","معطل","سيء","رديء","ضعيف","بطيء",
                      "problem","issue","error","not working","broken","slow","bad"],
         "opportunity": "معالجة هذه المشاكل يفتح فرص تميّز واضح على المنافسين",
-        "weight": 14,
+        "weight": 14, "pain": 5, "payment_prob": 4,
     },
     "حساسية_السعر": {
         "label": "💸 حساسية السعر — فرصة تسعير",
         "keywords": ["غالي","باهظ","مو مناسب","مش مناسب","كثير","ما يستاهل",
                      "expensive","overpriced","too much","not worth","costly"],
         "opportunity": "تقديم حزم مرنة وعروض قيمة تناسب شرائح مختلفة",
-        "weight": 13,
+        "weight": 13, "pain": 4, "payment_prob": 5,
     },
     "نقص_معلومات": {
         "label": "📚 نقص في المعلومات والمحتوى",
         "keywords": ["لا أعرف","ما أعرف","لا أجد","ما وجدت","ما لقيت","ما أدري",
                      "don't know","can't find","not sure","unclear","confused"],
         "opportunity": "إنتاج محتوى تعليمي وتسويقي يُعالج هذا الغموض",
-        "weight": 7,
+        "weight": 7, "pain": 2, "payment_prob": 2,
     },
     "تأخر_التسليم": {
         "label": "🚚 مشاكل التسليم والانتظار",
         "keywords": ["متى","انتظر","تأخر","وصل","يصل","شحن","توصيل",
                      "when","waiting","delayed","shipping","delivery","tracking"],
         "opportunity": "تحسين الشفافية في عمليات التسليم وتقديم تتبع لحظي",
-        "weight": 10,
+        "weight": 10, "pain": 4, "payment_prob": 3,
     },
 }
 
@@ -143,7 +219,6 @@ def tokenize(text: str) -> List[str]:
 
 
 def tfidf_scores(messages: List[str]) -> Dict[str, float]:
-    """Return term → TF-IDF score across all documents."""
     docs = [tokenize(d) for d in messages]
     N = len(docs) or 1
     df: Counter = Counter()
@@ -157,6 +232,106 @@ def tfidf_scores(messages: List[str]) -> Dict[str, float]:
         idf = math.log((N + 1) / (df[term] + 1)) + 1
         scored[term] = cnt * idf
     return scored
+
+
+# ─── Priority Matrix (Knowledge Architecture) ─────────────────────────────────
+
+def _priority_class(score: int) -> Dict:
+    if score >= 70:
+        return {"class": "A", "label": "يجب العمل عليه فوراً", "color": "red", "badge": "🔴 A"}
+    elif score >= 45:
+        return {"class": "B", "label": "فرصة قوية", "color": "amber", "badge": "🟡 B"}
+    elif score >= 20:
+        return {"class": "C", "label": "فرصة مستقبلية", "color": "blue", "badge": "🔵 C"}
+    else:
+        return {"class": "D", "label": "منخفضة القيمة", "color": "slate", "badge": "⚪ D"}
+
+
+def priority_matrix(opportunities: List[Dict], gaps: List[Dict], messages: List[Dict]) -> List[Dict]:
+    """
+    Score each finding: Priority = Pain × Frequency × Affected × PaymentProb
+    then classify as A/B/C/D.
+    """
+    total_chats = max(len({m.get("chat_id") for m in messages}), 1)
+    results = []
+
+    for opp in opportunities:
+        key = opp.get("key", "")
+        meta = OPPORTUNITY_PATTERNS.get(key, {})
+        pain = meta.get("pain", 3)
+        freq = min(5, max(1, opp.get("frequency", 1)))
+        affected = min(5, max(1, len(opp.get("active_chats", []))))
+        pay_prob = meta.get("payment_prob", 3)
+        raw = pain * freq * affected * pay_prob
+        score = min(100, int(raw * 1.5))
+        priority = _priority_class(score)
+        results.append({
+            "label": opp["label"],
+            "type": "فرصة",
+            "frequency": opp.get("frequency", 0),
+            "affected_chats": len(opp.get("active_chats", [])),
+            "action": opp.get("action", ""),
+            "ai_opportunity": meta.get("ai_opportunity", ""),
+            "current_solutions": meta.get("current_solutions", ""),
+            "solution_weaknesses": meta.get("solution_weaknesses", ""),
+            "score": score,
+            **priority,
+        })
+
+    for gap in gaps:
+        key = gap.get("key", "")
+        meta = GAP_DEFINITIONS.get(key, {})
+        pain = meta.get("pain", 3)
+        freq = min(5, max(1, gap.get("frequency", 1)))
+        affected = min(5, int(total_chats * 0.4) + 1)
+        pay_prob = meta.get("payment_prob", 2)
+        raw = pain * freq * affected * pay_prob
+        score = min(100, int(raw * 0.8))
+        priority = _priority_class(score)
+        results.append({
+            "label": gap["label"],
+            "type": "ثغرة",
+            "frequency": gap.get("frequency", 0),
+            "affected_chats": affected,
+            "action": gap.get("opportunity", ""),
+            "ai_opportunity": "تحليل الأنماط تلقائياً وتنبيه الفريق",
+            "current_solutions": "غير محددة",
+            "solution_weaknesses": "لا توجد معالجة منهجية",
+            "score": score,
+            **priority,
+        })
+
+    return sorted(results, key=lambda x: -x["score"])
+
+
+# ─── Keyword Categories ────────────────────────────────────────────────────────
+
+def keyword_categories(messages: List[Dict]) -> List[Dict]:
+    """
+    Extract and count keywords from messages, grouped by the 8 categories.
+    """
+    results = []
+    for cat_key, cat in KEYWORD_CATEGORIES.items():
+        matching_words: Counter = Counter()
+        msg_count = 0
+        for m in messages:
+            content = (m.get("content", "") or "").lower()
+            hits = [kw for kw in cat["keywords"] if kw.lower() in content]
+            if hits:
+                msg_count += 1
+                for h in hits:
+                    matching_words[h] += 1
+        if msg_count == 0:
+            continue
+        results.append({
+            "key": cat_key,
+            "label": cat["label"],
+            "color": cat["color"],
+            "msg_count": msg_count,
+            "top_keywords": [{"word": w, "count": c} for w, c in matching_words.most_common(6)],
+            "intensity": "عالية 🔥" if msg_count > 20 else "متوسطة" if msg_count > 5 else "منخفضة",
+        })
+    return sorted(results, key=lambda x: -x["msg_count"])
 
 
 # ─── Analysis Modules ─────────────────────────────────────────────────────────
@@ -177,7 +352,6 @@ def extract_topics(messages: List[Dict]) -> List[Dict]:
         if not related:
             continue
 
-        # Co-occurring terms
         co: Counter = Counter()
         for m in related:
             for t in tokenize(m.get("content", "")):
@@ -185,14 +359,12 @@ def extract_topics(messages: List[Dict]) -> List[Dict]:
                     co[t] += 1
         co_terms = [t for t, _ in co.most_common(4)]
 
-        # Sentiment breakdown for this topic
         sentiments: Counter = Counter()
         for m in related:
             ar = m.get("analysis_result") or {}
             sentiments[ar.get("sentiment", "محايد")] += 1
         dominant = sentiments.most_common(1)[0][0] if sentiments else "محايد"
 
-        # Opportunity score: high frequency + negative sentiment = pain = opportunity
         opp_score = min(100, int(score * 2 + (20 if dominant == "سلبي" else 0)))
 
         topics.append({
@@ -224,7 +396,6 @@ def detect_opportunities(messages: List[Dict]) -> List[Dict]:
             continue
 
         freq = len(matching)
-        # Extract frequent bi-grams from matching messages
         bigrams: Counter = Counter()
         for m in matching:
             toks = tokenize(m.get("content", ""))
@@ -243,6 +414,9 @@ def detect_opportunities(messages: List[Dict]) -> List[Dict]:
             "top_phrases": [p for p, _ in bigrams.most_common(5)],
             "active_chats": chats,
             "action": meta["action"],
+            "ai_opportunity": meta.get("ai_opportunity", ""),
+            "current_solutions": meta.get("current_solutions", ""),
+            "solution_weaknesses": meta.get("solution_weaknesses", ""),
             "sample": (matching[0].get("content", "") or "")[:160] if matching else "",
         })
 
@@ -259,7 +433,6 @@ def detect_gaps(messages: List[Dict]) -> List[Dict]:
             continue
 
         freq = len(matching)
-        # Top terms inside these messages
         hot_terms: Counter = Counter()
         for m in matching:
             hot_terms.update(tokenize(m.get("content", "")))
@@ -332,7 +505,6 @@ def trend_analysis(messages: List[Dict]) -> Dict:
     peak_day = max(by_day.items(), key=lambda x: len(x[1]))[0]
     avg_daily = round(len(messages) / max(len(by_day), 1), 1)
 
-    # Trending: compare last 3 days vs previous
     cutoff_idx = max(0, len(days_sorted) - 3)
     recent_days = set(days_sorted[cutoff_idx:])
     older_days = set(days_sorted[:cutoff_idx])
@@ -383,7 +555,6 @@ def channel_insights(messages: List[Dict]) -> List[Dict]:
             ar = m.get("analysis_result") or {}
             sent[ar.get("sentiment", "محايد")] += 1
 
-        # Market heat: ratio of opportunity keywords
         opp_msgs = sum(
             1 for m in msgs
             if any(kw in (m.get("content", "") or "").lower()
@@ -405,23 +576,74 @@ def channel_insights(messages: List[Dict]) -> List[Dict]:
     return results[:10]
 
 
-def executive_summary(opportunities: List, gaps: List, topics: List, messages: List) -> Dict:
+def executive_dashboard(opportunities: List, gaps: List, topics: List,
+                        demand: List, kw_cats: List, messages: List) -> Dict:
+    """
+    8-row executive dashboard table as per the Knowledge Architecture framework.
+    """
     total = len(messages)
-    top_opp = opportunities[0]["label"] if opportunities else "—"
+
+    # Biggest problem
     top_gap = gaps[0]["label"] if gaps else "—"
-    top_topic = topics[0]["term"] if topics else "—"
+
+    # Most affected category
+    chats_by_type: Counter = Counter()
+    for m in messages:
+        chats_by_type[m.get("chat_type", "غير محدد")] += 1
+    most_affected = chats_by_type.most_common(1)[0][0] if chats_by_type else "—"
+    type_map = {"user": "المستخدمون الأفراد", "group": "المجموعات", "channel": "القنوات"}
+    most_affected = type_map.get(most_affected, most_affected)
+
+    # Highest revenue opportunity
+    top_opp = opportunities[0]["label"] if opportunities else "—"
+    top_opp_ai = opportunities[0].get("ai_opportunity", "—") if opportunities else "—"
+
+    # Fastest to implement
+    fastest = "—"
+    for opp in opportunities:
+        if opp.get("frequency", 0) > 2:
+            fastest = opp["label"]
+            break
+
+    # Least competition (lowest score with highest pain)
+    least_comp = "—"
+    for opp in reversed(opportunities):
+        if opp.get("score", 0) < 40:
+            least_comp = opp["label"]
+            break
+
+    # Highest demand
+    top_demand = demand[0]["label"] if demand else (top_opp if opportunities else "—")
+
+    # Most sellable
+    top_sellable = "—"
+    for opp in opportunities:
+        key = opp.get("key", "")
+        meta = OPPORTUNITY_PATTERNS.get(key, {})
+        if meta.get("payment_prob", 0) >= 4:
+            top_sellable = opp["label"]
+            break
+
+    # Top AI opportunity
+    top_ai = "—"
+    for item in opportunities:
+        if item.get("ai_opportunity"):
+            top_ai = item["ai_opportunity"]
+            break
+
+    # Overall heat
     opp_score = opportunities[0]["score"] if opportunities else 0
     gap_score = gaps[0]["score"] if gaps else 0
-
     overall_heat = min(100, int((opp_score * 0.6 + gap_score * 0.4)))
     heat_label = "حار جداً 🔥🔥" if overall_heat > 75 else \
                  "حار 🔥" if overall_heat > 50 else \
                  "متوسط 📊" if overall_heat > 25 else "هادئ 💤"
 
+    # Key insights
     insights = []
     if opportunities:
         o = opportunities[0]
-        insights.append(f"أبرز فرصة: **{o['label']}** — تكررت {o['frequency']} مرة في {len(o.get('active_chats', []))} محادثة")
+        insights.append(f"أبرز فرصة: **{o['label']}** — تكررت {o['frequency']} مرة")
     if gaps:
         g = gaps[0]
         insights.append(f"أبرز ثغرة: **{g['label']}** — {g.get('opportunity', '')}")
@@ -430,12 +652,19 @@ def executive_summary(opportunities: List, gaps: List, topics: List, messages: L
         insights.append(f"أبرز المواضيع: {top3}")
 
     return {
+        "rows": [
+            {"label": "أكبر مشكلة", "icon": "⚠️", "value": top_gap, "color": "red"},
+            {"label": "أكثر فئة متضررة", "icon": "👥", "value": most_affected, "color": "orange"},
+            {"label": "أعلى فرصة ربح", "icon": "💎", "value": top_opp, "color": "emerald"},
+            {"label": "أسرع فرصة تنفيذ", "icon": "⚡", "value": fastest, "color": "blue"},
+            {"label": "أقل منافسة", "icon": "🏆", "value": least_comp, "color": "purple"},
+            {"label": "أعلى طلب", "icon": "📈", "value": top_demand, "color": "amber"},
+            {"label": "أعلى قابلية للبيع", "icon": "🛒", "value": top_sellable, "color": "green"},
+            {"label": "أعلى فرصة AI", "icon": "🤖", "value": top_ai, "color": "indigo"},
+        ],
         "total_messages": total,
         "opportunity_count": len(opportunities),
         "gap_count": len(gaps),
-        "top_opportunity": top_opp,
-        "top_gap": top_gap,
-        "dominant_topic": top_topic,
         "market_heat": heat_label,
         "overall_score": overall_heat,
         "insights": insights,
@@ -446,18 +675,12 @@ def executive_summary(opportunities: List, gaps: List, topics: List, messages: L
 # ─── Main Entry ───────────────────────────────────────────────────────────────
 
 def run_deep_analysis(messages: List[Dict]) -> Dict[str, Any]:
-    """
-    Full deep market intelligence pipeline.
-    Input: list of message dicts from DB.
-    Output: structured market report dict.
-    """
     if not messages:
         return {
             "error": "لا توجد رسائل للتحليل",
             "generated_at": datetime.utcnow().isoformat(),
         }
 
-    # Filter incoming messages only for analysis (not our own outgoing messages)
     incoming = [m for m in messages if m.get("direction") != "outgoing"]
     corpus = incoming if incoming else messages
 
@@ -467,10 +690,14 @@ def run_deep_analysis(messages: List[Dict]) -> Dict[str, Any]:
     demand = detect_demand_signals(corpus)
     trends = trend_analysis(corpus)
     channels = channel_insights(corpus)
-    summary = executive_summary(opportunities, gaps, topics, corpus)
+    kw_cats = keyword_categories(corpus)
+    matrix = priority_matrix(opportunities, gaps, corpus)
+    dashboard = executive_dashboard(opportunities, gaps, topics, demand, kw_cats, corpus)
 
     return {
-        "summary": summary,
+        "summary": dashboard,
+        "priority_matrix": matrix,
+        "keyword_categories": kw_cats,
         "topics": topics,
         "opportunities": opportunities,
         "gaps": gaps,

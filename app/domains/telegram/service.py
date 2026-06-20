@@ -143,6 +143,60 @@ def save_error(db: Session, account: TelegramAccount, error: str):
     db.commit()
 
 
+async def _validate_session(api_id: int, api_hash: str, session_str: str) -> tuple[bool, str]:
+    """Try to connect with stored session and confirm it's still valid."""
+    try:
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        client = TelegramClient(StringSession(session_str), api_id, api_hash)
+        await client.connect()
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            return False, "الجلسة منتهية الصلاحية"
+        me = await client.get_me()
+        new_session = client.session.save()
+        await client.disconnect()
+        return True, new_session
+    except Exception as e:
+        return False, str(e)
+
+
+def validate_and_refresh_session(db: Session) -> bool:
+    """
+    Called on startup — checks stored session is still valid.
+    Updates status in DB accordingly.
+    Returns True if session is valid.
+    """
+    account = db.query(TelegramAccount).first()
+    if not account or account.status != TelegramConnectionStatus.CONNECTED:
+        return False
+    if not account.session_string or not account.api_id or not account.api_hash:
+        save_error(db, account, "بيانات الجلسة ناقصة")
+        return False
+    loop = asyncio.new_event_loop()
+    try:
+        ok, result = loop.run_until_complete(
+            _validate_session(int(account.api_id), account.api_hash, account.session_string)
+        )
+    except Exception as e:
+        logger.error(f"Session validation error: {e}")
+        ok, result = False, str(e)
+    finally:
+        loop.close()
+    if ok:
+        account.session_string = result  # refresh with latest saved session
+        account.error_message = None
+        db.commit()
+        logger.info("✅ Telegram session is valid and refreshed")
+        return True
+    else:
+        account.status = TelegramConnectionStatus.ERROR
+        account.error_message = f"انتهت صلاحية الجلسة: {result}"
+        db.commit()
+        logger.warning(f"⚠️ Telegram session invalid: {result}")
+        return False
+
+
 def disconnect_account(db: Session, account: TelegramAccount):
     account.status = TelegramConnectionStatus.DISCONNECTED
     account.session_string = None

@@ -138,6 +138,12 @@ def startup():
             try:
                 from app.domains.auth.service import ensure_superuser
                 ensure_superuser(db)
+                # Validate stored Telegram session on startup
+                try:
+                    from app.domains.telegram.service import validate_and_refresh_session
+                    validate_and_refresh_session(db)
+                except Exception as tg_err:
+                    print(f"Telegram session check skipped: {tg_err}")
             finally:
                 db.close()
         except Exception as e:

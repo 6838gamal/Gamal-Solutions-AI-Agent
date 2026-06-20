@@ -49,6 +49,20 @@ async def verify_code(
         return JSONResponse({"success": False, "message": f"رمز خاطئ أو منتهي: {str(e)}"}, status_code=400)
 
 
+@router.post("/connect/validate")
+def validate_session(db: Session = Depends(get_db)):
+    """Verify the stored session is still alive without re-logging in."""
+    account = tg_service.get_account(db)
+    if not account or account.status != tg_models.TelegramConnectionStatus.CONNECTED:
+        return JSONResponse({"valid": False, "message": "لا توجد جلسة نشطة"})
+    ok = tg_service.validate_and_refresh_session(db)
+    if ok:
+        return JSONResponse({"valid": True, "message": "✅ الجلسة صالحة ومحفوظة في قاعدة البيانات"})
+    else:
+        db.refresh(account)
+        return JSONResponse({"valid": False, "message": account.error_message or "انتهت صلاحية الجلسة"}, status_code=200)
+
+
 @router.post("/connect/disconnect")
 def disconnect(db: Session = Depends(get_db)):
     account = tg_service.get_account(db)

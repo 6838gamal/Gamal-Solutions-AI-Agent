@@ -96,29 +96,64 @@
 
     <!-- CONNECTED STATE -->
     <template x-if="status === 'connected'">
-      <div class="bg-white rounded-2xl border border-green-200 p-8 text-center max-w-lg mx-auto">
-        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-        </div>
-        <h3 class="font-black text-slate-800 text-xl mb-1" x-text="'مرحباً، ' + accountInfo + ' 👋'"></h3>
-        <p class="text-slate-500 text-sm mb-6">الحساب متصل بتيليجرام ويعمل بشكل صحيح</p>
-        <div class="bg-slate-50 rounded-xl p-4 mb-6 text-right space-y-2">
-          <div class="flex justify-between text-sm">
-            <span class="text-slate-500">الحالة</span>
-            <span class="badge badge-green font-bold">متصل ✓</span>
+      <div class="max-w-xl mx-auto space-y-4">
+
+        <!-- Main connected card -->
+        <div class="bg-white rounded-2xl border border-green-200 shadow-sm overflow-hidden">
+          <div class="bg-gradient-to-l from-green-50 to-emerald-50 px-6 py-5 flex items-center gap-4 border-b border-green-100">
+            <div class="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 shadow">
+              <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <div>
+              <h3 class="font-black text-slate-800 text-lg" x-text="'مرحباً، ' + accountInfo"></h3>
+              <p class="text-green-700 text-sm font-medium">✅ الحساب متصل ويعمل بشكل صحيح</p>
+            </div>
           </div>
-          <div class="flex justify-between text-sm">
-            <span class="text-slate-500">الرسائل المستوردة</span>
-            <span class="font-bold text-blue-600" x-text="totalMessages + ' رسالة'"></span>
+          <div class="px-6 py-4 space-y-3">
+            <div class="flex justify-between items-center py-2 border-b border-slate-50">
+              <span class="text-slate-500 text-sm flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                حفظ الجلسة
+              </span>
+              <span class="badge badge-green text-xs">محفوظة في قاعدة البيانات ✓</span>
+            </div>
+            <div class="flex justify-between items-center py-2 border-b border-slate-50">
+              <span class="text-slate-500 text-sm">تستمر الجلسة بعد إعادة التشغيل؟</span>
+              <span class="text-green-700 font-bold text-sm">نعم — تلقائياً</span>
+            </div>
+            <div class="flex justify-between items-center py-2">
+              <span class="text-slate-500 text-sm">الرسائل المستوردة</span>
+              <span class="font-bold text-blue-600" x-text="totalMessages + ' رسالة'"></span>
+            </div>
+          </div>
+          <div class="px-6 pb-5 flex flex-wrap gap-3">
+            <button @click="tab='messages'; syncMessages()" class="btn-primary flex-1 justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              جلب الرسائل
+            </button>
+            <button @click="validateSession()" class="btn-secondary flex-1 justify-center" :disabled="validating">
+              <svg class="w-4 h-4" :class="{'animate-spin': validating}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+              <span x-text="validating ? 'جاري التحقق...' : 'التحقق من الجلسة'"></span>
+            </button>
+            <button @click="disconnect()" class="btn-danger">قطع</button>
           </div>
         </div>
-        <div class="flex gap-3 justify-center">
-          <button @click="tab='messages'; syncMessages()" class="btn-primary">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            جلب الرسائل الآن
-          </button>
-          <button @click="disconnect()" class="btn-danger">قطع الاتصال</button>
+
+        <!-- Session persistence info box -->
+        <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+          <div class="flex gap-3 items-start">
+            <div class="text-blue-500 flex-shrink-0 mt-0.5">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="text-sm text-blue-800 space-y-1">
+              <p class="font-bold">كيف تعمل الجلسة؟</p>
+              <p>• الجلسة محفوظة بشكل دائم في قاعدة البيانات وتبقى عبر إعادة التشغيل</p>
+              <p>• عند كل تشغيل للتطبيق يتم التحقق تلقائياً من صلاحيتها</p>
+              <p>• لن تحتاج لتسجيل الدخول من جديد ما لم تنهِ جلستك من تيليجرام</p>
+            </div>
+          </div>
         </div>
+
       </div>
     </template>
 
@@ -600,6 +635,7 @@ function telegramApp() {
     syncing: false,
     requesting: false,
     verifying: false,
+    validating: false,
     savingRule: false,
     msgFilter: '',
     msgDirectionFilter: '',
@@ -691,6 +727,15 @@ function telegramApp() {
       this.verifying = false;
       this.showToast(data.message, data.success ? 'success' : 'error');
       if (data.success) { this.status = 'connected'; location.reload(); }
+    },
+
+    async validateSession() {
+      this.validating = true;
+      const r = await fetch('/api/v1/telegram/connect/validate', { method: 'POST' });
+      const data = await r.json();
+      this.validating = false;
+      this.showToast(data.message, data.valid ? 'success' : 'error');
+      if (!data.valid) this.status = 'error';
     },
 
     async disconnect() {

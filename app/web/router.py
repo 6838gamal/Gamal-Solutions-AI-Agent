@@ -15,7 +15,9 @@ from app.domains.conversations import models as conv_models
 from app.domains.knowledge import models as kb_models
 from app.domains.workflows import models as wf_models
 from app.domains.audit import models as audit_models
+from app.domains.telegram import models as tg_models
 
+import json
 import os
 
 logger = logging.getLogger(__name__)
@@ -372,4 +374,70 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login", status_code=302)
     return templates.TemplateResponse("settings.html", {
         "request": request, "user": user, "page": "settings", "success": None, "error": None
+    })
+
+
+# ─── TELEGRAM ─────────────────────────────────────────────────────────────────
+
+@router.get("/telegram", response_class=HTMLResponse)
+def telegram_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    try:
+        account = db.query(tg_models.TelegramAccount).first()
+        messages = []
+        rules = []
+        if account:
+            messages = db.query(tg_models.TelegramMessage)\
+                .filter_by(account_id=account.id)\
+                .order_by(tg_models.TelegramMessage.received_at.desc())\
+                .limit(200).all()
+            rules = db.query(tg_models.TelegramReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception:
+        account = None
+        messages = []
+        rules = []
+
+    def msg_to_dict(m):
+        return {
+            "id": m.id,
+            "message_id": m.message_id,
+            "chat_id": m.chat_id,
+            "chat_title": m.chat_title or "",
+            "chat_type": m.chat_type or "",
+            "sender_id": m.sender_id or "",
+            "sender_name": m.sender_name or "مجهول",
+            "sender_username": m.sender_username or "",
+            "content": m.content or "",
+            "direction": m.direction or "incoming",
+            "is_read": m.is_read,
+            "is_analyzed": m.is_analyzed,
+            "analysis_result": m.analysis_result or {},
+            "reply_sent": m.reply_sent,
+            "replied_at": m.replied_at.isoformat() if m.replied_at else None,
+            "received_at": m.received_at.isoformat() if m.received_at else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": r.rule_name,
+            "is_active": r.is_active,
+            "target_type": r.target_type,
+            "keywords": r.keywords or [],
+            "reply_mode": r.reply_mode,
+            "reply_template": r.reply_template or "",
+            "replies_sent": r.replies_sent,
+        }
+
+    return templates.TemplateResponse("telegram.html", {
+        "request": request,
+        "user": user,
+        "page": "telegram",
+        "account": account,
+        "messages": messages,
+        "messages_json": json.dumps([msg_to_dict(m) for m in messages], ensure_ascii=False),
+        "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
     })

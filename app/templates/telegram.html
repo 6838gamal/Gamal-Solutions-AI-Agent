@@ -1,0 +1,741 @@
+{% extends "base.html" %}
+
+{% block title %}تيليجرام — منصة جمال{% endblock %}
+
+{% block page_title %}تكامل تيليجرام{% endblock %}
+{% block page_subtitle %}إدارة الاتصال واستقبال البيانات والتحليل والرد{% endblock %}
+
+{% block head %}
+<style>
+  .tg-tab { cursor:pointer; padding:.5rem 1.25rem; border-radius:.75rem; font-size:.875rem; font-weight:600; color:#64748b; transition:all .15s; }
+  .tg-tab.active { background:#2563eb; color:#fff; box-shadow:0 2px 8px rgba(37,99,235,.3); }
+  .tg-tab:hover:not(.active) { background:#f1f5f9; color:#1e40af; }
+  .tg-panel { display:none; }
+  .tg-panel.active { display:block; }
+  .msg-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; margin-bottom:.75rem; transition:box-shadow .15s; }
+  .msg-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
+  .msg-card.unread { border-right:3px solid #2563eb; }
+  .badge-incoming { background:#dbeafe; color:#1e40af; }
+  .badge-outgoing { background:#d1fae5; color:#065f46; }
+  .sentiment-positive { background:#d1fae5; color:#065f46; }
+  .sentiment-negative { background:#fee2e2; color:#991b1b; }
+  .sentiment-neutral { background:#f1f5f9; color:#475569; }
+  .status-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .status-connected { background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.2); }
+  .status-disconnected { background:#94a3b8; }
+  .status-pending { background:#f59e0b; animation: pulse 1.5s infinite; }
+  .status-error { background:#ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .rule-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; margin-bottom:.75rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="telegramApp()" x-init="init()">
+
+  <!-- Connection Status Bar -->
+  <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-6 flex flex-wrap items-center gap-4">
+    <div class="flex items-center gap-3">
+      <span class="status-dot" :class="{
+        'status-connected': status === 'connected',
+        'status-disconnected': status === 'disconnected',
+        'status-pending': status === 'pending_code',
+        'status-error': status === 'error'
+      }"></span>
+      <div>
+        <div class="font-bold text-slate-800 text-sm" x-text="statusLabel()"></div>
+        <div class="text-xs text-slate-500" x-text="accountInfo"></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 mr-auto">
+      <template x-if="status === 'connected'">
+        <div class="flex gap-2">
+          <button @click="syncMessages()" class="btn-primary text-xs py-1.5 px-3" :disabled="syncing">
+            <svg class="w-4 h-4" :class="{'animate-spin': syncing}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span x-text="syncing ? 'جاري الجلب...' : 'جلب الرسائل'"></span>
+          </button>
+          <button @click="analyzeMessages()" class="btn-secondary text-xs py-1.5 px-3">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            تحليل
+          </button>
+          <button @click="disconnect()" class="btn-danger text-xs py-1.5 px-3">قطع الاتصال</button>
+        </div>
+      </template>
+    </div>
+    <!-- Toast -->
+    <template x-if="toast">
+      <div class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium"
+           :class="toastType === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'"
+           x-text="toast"></div>
+    </template>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-2 mb-6 flex-wrap">
+    <button class="tg-tab" :class="{ active: tab === 'settings' }" @click="tab='settings'">
+      ⚙️ الإعدادات والاتصال
+    </button>
+    <button class="tg-tab" :class="{ active: tab === 'messages' }" @click="tab='messages'">
+      📨 استقبال البيانات
+      <template x-if="unreadCount > 0">
+        <span class="mr-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5" x-text="unreadCount"></span>
+      </template>
+    </button>
+    <button class="tg-tab" :class="{ active: tab === 'analysis' }" @click="tab='analysis'">
+      📊 التحليل
+    </button>
+    <button class="tg-tab" :class="{ active: tab === 'rules' }" @click="tab='rules'">
+      🤖 تغذية الوكيل والرد
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- TAB 1: SETTINGS -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div x-show="tab === 'settings'">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- API Credentials Card -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-800 text-lg mb-1">بيانات API تيليجرام</h3>
+        <p class="text-slate-500 text-sm mb-5">احصل على API ID و API Hash من <a href="https://my.telegram.org/apps" target="_blank" class="text-blue-600 underline">my.telegram.org/apps</a></p>
+
+        <template x-if="status !== 'connected'">
+          <form @submit.prevent="requestCode()" class="space-y-4">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">API ID</label>
+              <input x-model="form.api_id" type="text" placeholder="مثال: 12345678" class="form-input" required />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">API Hash</label>
+              <input x-model="form.api_hash" type="password" placeholder="أدخل API Hash" class="form-input" required />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">رقم الهاتف (مع كود الدولة)</label>
+              <input x-model="form.phone" type="tel" placeholder="مثال: +966501234567" class="form-input" required />
+            </div>
+            <button type="submit" class="btn-primary w-full justify-center" :disabled="requesting">
+              <svg class="w-4 h-4" :class="{'animate-spin': requesting}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+              <span x-text="requesting ? 'جاري الإرسال...' : 'إرسال رمز التحقق'"></span>
+            </button>
+          </form>
+        </template>
+
+        <template x-if="status === 'connected'">
+          <div class="text-center py-8">
+            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <p class="font-bold text-slate-800 text-lg" x-text="'مرحباً، ' + accountInfo"></p>
+            <p class="text-slate-500 text-sm mt-1">الحساب متصل ويعمل بشكل صحيح</p>
+          </div>
+        </template>
+      </div>
+
+      <!-- Verification Code Card -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-800 text-lg mb-1">التحقق من الهوية</h3>
+
+        <template x-if="status === 'pending_code'">
+          <div>
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+              <p class="text-amber-800 text-sm font-medium">📱 تم إرسال رمز التحقق إلى تطبيق تيليجرام أو هاتفك</p>
+            </div>
+            <form @submit.prevent="verifyCode()" class="space-y-4">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">رمز التحقق</label>
+                <input x-model="form.code" type="text" placeholder="أدخل الرمز المكون من 5 أرقام" class="form-input text-center text-xl tracking-widest" maxlength="10" required />
+              </div>
+              <button type="submit" class="btn-primary w-full justify-center" :disabled="verifying">
+                <svg class="w-4 h-4" :class="{'animate-spin': verifying}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span x-text="verifying ? 'جاري التحقق...' : 'تأكيد الرمز وتسجيل الدخول'"></span>
+              </button>
+              <button type="button" @click="status='disconnected'" class="btn-secondary w-full justify-center">إعادة إدخال البيانات</button>
+            </form>
+          </div>
+        </template>
+
+        <template x-if="status !== 'pending_code' && status !== 'connected'">
+          <div class="text-center py-10 text-slate-400">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <p class="text-sm">أدخل بيانات API ورقم الهاتف أولاً</p>
+          </div>
+        </template>
+
+        <template x-if="status === 'connected'">
+          <div class="space-y-3 mt-2">
+            <div class="flex justify-between items-center py-2 border-b border-slate-100">
+              <span class="text-slate-500 text-sm">الحالة</span>
+              <span class="badge badge-green">متصل ✓</span>
+            </div>
+            <div class="flex justify-between items-center py-2 border-b border-slate-100">
+              <span class="text-slate-500 text-sm">المستخدم</span>
+              <span class="font-medium text-sm text-slate-800" x-text="accountInfo"></span>
+            </div>
+            <div class="flex justify-between items-center py-2">
+              <span class="text-slate-500 text-sm">الرسائل المستوردة</span>
+              <span class="font-bold text-blue-600" x-text="totalMessages"></span>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="status === 'error'">
+          <div class="bg-red-50 border border-red-200 rounded-xl p-4 mt-4">
+            <p class="text-red-700 text-sm font-medium">⚠️ حدث خطأ في الاتصال. تحقق من البيانات وأعد المحاولة.</p>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- TAB 2: MESSAGES / DATA RECEPTION -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div x-show="tab === 'messages'">
+    <!-- Filters -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 flex flex-wrap gap-3 items-center">
+      <input x-model="msgFilter" type="text" placeholder="بحث في الرسائل..." class="form-input max-w-xs" />
+      <select x-model="msgDirectionFilter" class="form-input max-w-xs">
+        <option value="">كل الرسائل</option>
+        <option value="incoming">واردة</option>
+        <option value="outgoing">صادرة</option>
+      </select>
+      <select x-model="msgReadFilter" class="form-input max-w-xs">
+        <option value="">كل الحالات</option>
+        <option value="unread">غير مقروءة</option>
+        <option value="read">مقروءة</option>
+      </select>
+      <div class="mr-auto text-sm text-slate-500">
+        <span x-text="filteredMessages.length"></span> رسالة
+      </div>
+    </div>
+
+    <!-- Messages List -->
+    <template x-if="filteredMessages.length === 0">
+      <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+        <svg class="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+        <p class="text-lg font-medium mb-1">لا توجد رسائل</p>
+        <p class="text-sm">اتصل بتيليجرام واضغط "جلب الرسائل" لاستيرادها</p>
+      </div>
+    </template>
+
+    <template x-for="msg in filteredMessages" :key="msg.id">
+      <div class="msg-card" :class="{ 'unread': !msg.is_read }">
+        <div class="flex items-start gap-3">
+          <!-- Avatar -->
+          <div class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm"
+               :style="'background:' + stringToColor(msg.sender_name)">
+            <span x-text="(msg.sender_name || '?')[0]"></span>
+          </div>
+          <!-- Content -->
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+              <span class="font-bold text-slate-800 text-sm" x-text="msg.sender_name || 'مجهول'"></span>
+              <template x-if="msg.sender_username">
+                <span class="text-xs text-slate-400" x-text="'@' + msg.sender_username"></span>
+              </template>
+              <span class="badge text-xs" :class="msg.direction === 'incoming' ? 'badge-incoming' : 'badge-outgoing'"
+                    x-text="msg.direction === 'incoming' ? '⬇ وارد' : '⬆ صادر'"></span>
+              <template x-if="msg.reply_sent">
+                <span class="badge badge-green text-xs">✓ تم الرد</span>
+              </template>
+              <template x-if="!msg.is_read && msg.direction === 'incoming'">
+                <span class="badge badge-blue text-xs">جديد</span>
+              </template>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-400 mb-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"/></svg>
+              <span x-text="msg.chat_title || msg.chat_id"></span>
+              <span>•</span>
+              <span x-text="formatDate(msg.received_at)"></span>
+            </div>
+            <p class="text-slate-700 text-sm leading-relaxed bg-slate-50 rounded-lg px-3 py-2" x-text="msg.content"></p>
+
+            <!-- Analysis badge -->
+            <template x-if="msg.is_analyzed && msg.analysis_result">
+              <div class="flex flex-wrap gap-2 mt-2">
+                <span class="badge text-xs"
+                      :class="msg.analysis_result.sentiment === 'إيجابي' ? 'sentiment-positive' : msg.analysis_result.sentiment === 'سلبي' ? 'sentiment-negative' : 'sentiment-neutral'"
+                      x-text="'المشاعر: ' + msg.analysis_result.sentiment"></span>
+                <span class="badge badge-blue text-xs" x-text="'النية: ' + msg.analysis_result.intent"></span>
+                <template x-if="msg.analysis_result.priority === 'عالي'">
+                  <span class="badge badge-red text-xs">⚡ أولوية عالية</span>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex flex-col gap-1.5 flex-shrink-0">
+            <button @click="openReplyModal(msg)"
+                    class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors"
+                    :disabled="msg.direction !== 'incoming'">
+              رد
+            </button>
+            <button @click="markRead(msg)"
+                    x-show="!msg.is_read && msg.direction === 'incoming'"
+                    class="text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg font-medium transition-colors">
+              قراءة
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- TAB 3: ANALYSIS -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div x-show="tab === 'analysis'">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="stat-card text-center">
+        <div class="text-3xl font-black text-blue-600" x-text="totalMessages"></div>
+        <div class="text-slate-500 text-sm mt-1">إجمالي الرسائل</div>
+      </div>
+      <div class="stat-card text-center">
+        <div class="text-3xl font-black text-green-600" x-text="analysisStats.analyzed"></div>
+        <div class="text-slate-500 text-sm mt-1">تم تحليلها</div>
+      </div>
+      <div class="stat-card text-center">
+        <div class="text-3xl font-black text-amber-600" x-text="unreadCount"></div>
+        <div class="text-slate-500 text-sm mt-1">غير مقروءة</div>
+      </div>
+      <div class="stat-card text-center">
+        <div class="text-3xl font-black text-purple-600" x-text="analysisStats.replied"></div>
+        <div class="text-slate-500 text-sm mt-1">تم الرد عليها</div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Sentiment Distribution -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-800 mb-4">توزيع المشاعر</h3>
+        <div class="space-y-3">
+          <template x-for="item in sentimentData" :key="item.label">
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span x-text="item.label"></span>
+                <span class="font-bold" x-text="item.count"></span>
+              </div>
+              <div class="bg-slate-100 rounded-full h-2">
+                <div class="h-2 rounded-full transition-all" :class="item.color"
+                     :style="'width:' + (totalMessages ? Math.round(item.count/totalMessages*100) : 0) + '%'"></div>
+              </div>
+            </div>
+          </template>
+          <template x-if="totalMessages === 0">
+            <p class="text-slate-400 text-sm text-center py-4">لا توجد بيانات بعد — اجلب الرسائل وحللها</p>
+          </template>
+        </div>
+      </div>
+
+      <!-- Intent Distribution -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-800 mb-4">توزيع النوايا</h3>
+        <div class="space-y-3">
+          <template x-for="item in intentData" :key="item.label">
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span x-text="item.label"></span>
+                <span class="font-bold" x-text="item.count"></span>
+              </div>
+              <div class="bg-slate-100 rounded-full h-2">
+                <div class="h-2 rounded-full bg-blue-500"
+                     :style="'width:' + (totalMessages ? Math.round(item.count/totalMessages*100) : 0) + '%'"></div>
+              </div>
+            </div>
+          </template>
+          <template x-if="totalMessages === 0">
+            <p class="text-slate-400 text-sm text-center py-4">لا توجد بيانات بعد — اجلب الرسائل وحللها</p>
+          </template>
+        </div>
+      </div>
+
+      <!-- Top Senders -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 lg:col-span-2">
+        <h3 class="font-bold text-slate-800 mb-4">أكثر المرسلين نشاطاً</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-100">
+                <th class="text-right py-2 text-slate-500 font-medium">المرسل</th>
+                <th class="text-right py-2 text-slate-500 font-medium">عدد الرسائل</th>
+                <th class="text-right py-2 text-slate-500 font-medium">المجموعة/المحادثة</th>
+                <th class="text-right py-2 text-slate-500 font-medium">آخر رسالة</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="sender in topSenders" :key="sender.name">
+                <tr class="border-b border-slate-50 hover:bg-slate-50">
+                  <td class="py-2">
+                    <div class="flex items-center gap-2">
+                      <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                           :style="'background:' + stringToColor(sender.name)">
+                        <span x-text="sender.name[0]"></span>
+                      </div>
+                      <span x-text="sender.name"></span>
+                    </div>
+                  </td>
+                  <td class="py-2 font-bold text-blue-600" x-text="sender.count"></td>
+                  <td class="py-2 text-slate-500" x-text="sender.chat"></td>
+                  <td class="py-2 text-slate-400" x-text="sender.last"></td>
+                </tr>
+              </template>
+              <template x-if="topSenders.length === 0">
+                <tr>
+                  <td colspan="4" class="text-center text-slate-400 py-6">لا توجد بيانات</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- TAB 4: AGENT RULES -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div x-show="tab === 'rules'">
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <!-- Add Rule Form -->
+      <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-800 text-lg mb-4">إضافة قاعدة رد جديدة</h3>
+        <form @submit.prevent="addRule()" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">اسم القاعدة</label>
+            <input x-model="ruleForm.rule_name" type="text" placeholder="مثال: رد على العملاء" class="form-input" required />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">الهدف</label>
+            <select x-model="ruleForm.target_type" class="form-input">
+              <option value="all">جميع الرسائل</option>
+              <option value="user">مستخدم محدد</option>
+              <option value="group">مجموعة محددة</option>
+              <option value="keyword">بناءً على كلمات مفتاحية</option>
+            </select>
+          </div>
+          <template x-if="ruleForm.target_type === 'user'">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">اسم المستخدم</label>
+              <input x-model="ruleForm.target_sender_username" type="text" placeholder="@username" class="form-input" />
+            </div>
+          </template>
+          <template x-if="ruleForm.target_type === 'group'">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">معرف المجموعة</label>
+              <input x-model="ruleForm.target_chat_id" type="text" placeholder="Chat ID" class="form-input" />
+            </div>
+          </template>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">كلمات مفتاحية (مفصولة بفاصلة)</label>
+            <input x-model="ruleForm.keywords" type="text" placeholder="مثال: سعر, منتج, شراء" class="form-input" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">نمط الرد</label>
+            <select x-model="ruleForm.reply_mode" class="form-input">
+              <option value="manual">يدوي (أنا أختار متى أرد)</option>
+              <option value="template">قالب ثابت</option>
+              <option value="agent">وكيل الذكاء الاصطناعي</option>
+            </select>
+          </div>
+          <template x-if="ruleForm.reply_mode === 'template' || ruleForm.reply_mode === 'agent'">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">نص الرد / توجيه الوكيل</label>
+              <textarea x-model="ruleForm.reply_template" rows="3" placeholder="أدخل نص الرد أو تعليمات الوكيل..." class="form-input"></textarea>
+            </div>
+          </template>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">تأخير الرد (ثانية)</label>
+              <input x-model.number="ruleForm.reply_delay_seconds" type="number" min="0" max="300" class="form-input" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">حد الردود/ساعة</label>
+              <input x-model.number="ruleForm.max_replies_per_hour" type="number" min="1" max="100" class="form-input" />
+            </div>
+          </div>
+          <button type="submit" class="btn-primary w-full justify-center" :disabled="savingRule">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span x-text="savingRule ? 'جاري الحفظ...' : 'إضافة القاعدة'"></span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Rules List -->
+      <div class="lg:col-span-3">
+        <h3 class="font-bold text-slate-800 text-lg mb-4">قواعد الرد النشطة</h3>
+        <template x-if="rules.length === 0">
+          <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+            <p>لا توجد قواعد بعد. أضف قاعدتك الأولى!</p>
+          </div>
+        </template>
+        <template x-for="rule in rules" :key="rule.id">
+          <div class="rule-card" :class="rule.is_active ? 'border-blue-200' : 'opacity-60'">
+            <div class="flex items-start gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-bold text-slate-800 text-sm" x-text="rule.rule_name"></span>
+                  <span class="badge text-xs" :class="rule.is_active ? 'badge-green' : 'badge-gray'"
+                        x-text="rule.is_active ? 'نشط' : 'متوقف'"></span>
+                </div>
+                <div class="text-xs text-slate-500 space-y-0.5">
+                  <div>الهدف: <span class="font-medium" x-text="targetLabel(rule.target_type)"></span></div>
+                  <div>نمط الرد: <span class="font-medium" x-text="replyModeLabel(rule.reply_mode)"></span></div>
+                  <template x-if="rule.keywords && rule.keywords.length > 0">
+                    <div class="flex gap-1 flex-wrap mt-1">
+                      <template x-for="kw in rule.keywords" :key="kw">
+                        <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-xs" x-text="kw"></span>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+                <div class="text-xs text-slate-400 mt-1">ردود مرسلة: <span x-text="rule.replies_sent"></span></div>
+              </div>
+              <div class="flex gap-1.5 flex-shrink-0">
+                <button @click="toggleRule(rule)" class="text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors"
+                        :class="rule.is_active ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-green-50 text-green-700 hover:bg-green-100'"
+                        x-text="rule.is_active ? 'إيقاف' : 'تفعيل'"></button>
+                <button @click="deleteRule(rule.id)" class="text-xs bg-red-50 text-red-700 hover:bg-red-100 px-2.5 py-1.5 rounded-lg font-medium transition-colors">حذف</button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- Reply Modal -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <template x-if="replyModal.open">
+    <div class="modal-overlay" @click.self="replyModal.open=false">
+      <div class="modal-box p-6 max-w-lg">
+        <h3 class="font-bold text-slate-800 text-lg mb-2">الرد على الرسالة</h3>
+        <div class="bg-slate-50 rounded-xl p-3 mb-4 text-sm text-slate-700" x-text="replyModal.originalMsg"></div>
+        <div class="mb-1 text-xs text-slate-500">من: <span class="font-medium" x-text="replyModal.senderName"></span></div>
+        <div class="mb-4 text-xs text-slate-500">في: <span class="font-medium" x-text="replyModal.chatTitle"></span></div>
+        <textarea x-model="replyModal.text" rows="4" placeholder="اكتب ردك هنا..." class="form-input mb-4"></textarea>
+        <div class="flex gap-3">
+          <button @click="sendReply()" class="btn-primary flex-1 justify-center" :disabled="replyModal.sending">
+            <svg class="w-4 h-4" :class="{'animate-spin': replyModal.sending}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            <span x-text="replyModal.sending ? 'جاري الإرسال...' : 'إرسال الرد'"></span>
+          </button>
+          <button @click="replyModal.open=false" class="btn-secondary">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+<script>
+function telegramApp() {
+  return {
+    tab: 'settings',
+    status: '{{ account.status if account else "disconnected" }}',
+    accountInfo: '{{ (account.telegram_first_name or "") + (" @" + account.telegram_username if account and account.telegram_username else "") if account else "" }}',
+    totalMessages: {{ messages|length }},
+    messages: {{ messages_json|safe }},
+    rules: {{ rules_json|safe }},
+    toast: null,
+    toastType: 'success',
+    syncing: false,
+    requesting: false,
+    verifying: false,
+    savingRule: false,
+    msgFilter: '',
+    msgDirectionFilter: '',
+    msgReadFilter: '',
+    form: { api_id: '{{ account.api_id or "" if account else "" }}', api_hash: '', phone: '{{ account.phone or "" if account else "" }}', code: '' },
+    ruleForm: { rule_name: '', target_type: 'all', target_chat_id: '', target_sender_username: '', keywords: '', reply_mode: 'manual', reply_template: '', reply_delay_seconds: 0, max_replies_per_hour: 10 },
+    replyModal: { open: false, messageId: null, originalMsg: '', senderName: '', chatTitle: '', text: '', sending: false },
+
+    init() {},
+
+    statusLabel() {
+      const labels = { connected: '✅ متصل بتيليجرام', disconnected: '⚫ غير متصل', pending_code: '⏳ في انتظار رمز التحقق', error: '❌ خطأ في الاتصال' };
+      return labels[this.status] || 'غير معروف';
+    },
+
+    get unreadCount() {
+      return this.messages.filter(m => !m.is_read && m.direction === 'incoming').length;
+    },
+
+    get filteredMessages() {
+      return this.messages.filter(m => {
+        const matchText = !this.msgFilter || (m.content||'').includes(this.msgFilter) || (m.sender_name||'').includes(this.msgFilter) || (m.chat_title||'').includes(this.msgFilter);
+        const matchDir = !this.msgDirectionFilter || m.direction === this.msgDirectionFilter;
+        const matchRead = !this.msgReadFilter || (this.msgReadFilter === 'unread' ? !m.is_read : m.is_read);
+        return matchText && matchDir && matchRead;
+      });
+    },
+
+    get analysisStats() {
+      return {
+        analyzed: this.messages.filter(m => m.is_analyzed).length,
+        replied: this.messages.filter(m => m.reply_sent).length,
+      };
+    },
+
+    get sentimentData() {
+      const analyzed = this.messages.filter(m => m.is_analyzed && m.analysis_result);
+      const counts = { 'إيجابي': 0, 'سلبي': 0, 'محايد': 0 };
+      analyzed.forEach(m => { counts[m.analysis_result.sentiment] = (counts[m.analysis_result.sentiment] || 0) + 1; });
+      return [
+        { label: '😊 إيجابي', count: counts['إيجابي'], color: 'bg-green-500' },
+        { label: '😞 سلبي', count: counts['سلبي'], color: 'bg-red-500' },
+        { label: '😐 محايد', count: counts['محايد'], color: 'bg-slate-400' },
+      ];
+    },
+
+    get intentData() {
+      const analyzed = this.messages.filter(m => m.is_analyzed && m.analysis_result);
+      const counts = {};
+      analyzed.forEach(m => {
+        const intent = m.analysis_result.intent || 'عام';
+        counts[intent] = (counts[intent] || 0) + 1;
+      });
+      return Object.entries(counts).map(([label, count]) => ({ label, count })).sort((a,b) => b.count - a.count);
+    },
+
+    get topSenders() {
+      const map = {};
+      this.messages.filter(m => m.direction === 'incoming').forEach(m => {
+        const key = m.sender_name || 'مجهول';
+        if (!map[key]) map[key] = { name: key, count: 0, chat: m.chat_title, last: m.received_at };
+        map[key].count++;
+        if (m.received_at > map[key].last) map[key].last = m.received_at;
+      });
+      return Object.values(map).sort((a,b) => b.count - a.count).slice(0, 10).map(s => ({
+        ...s, last: s.last ? new Date(s.last).toLocaleDateString('ar-SA') : '-'
+      }));
+    },
+
+    async requestCode() {
+      this.requesting = true;
+      const fd = new FormData();
+      fd.append('api_id', this.form.api_id);
+      fd.append('api_hash', this.form.api_hash);
+      fd.append('phone', this.form.phone);
+      const r = await fetch('/api/v1/telegram/connect/request-code', { method: 'POST', body: fd });
+      const data = await r.json();
+      this.requesting = false;
+      this.showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success) this.status = 'pending_code';
+    },
+
+    async verifyCode() {
+      this.verifying = true;
+      const fd = new FormData();
+      fd.append('code', this.form.code);
+      const r = await fetch('/api/v1/telegram/connect/verify-code', { method: 'POST', body: fd });
+      const data = await r.json();
+      this.verifying = false;
+      this.showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success) { this.status = 'connected'; location.reload(); }
+    },
+
+    async disconnect() {
+      if (!confirm('هل تريد قطع الاتصال بتيليجرام؟')) return;
+      await fetch('/api/v1/telegram/connect/disconnect', { method: 'POST' });
+      this.status = 'disconnected';
+      this.accountInfo = '';
+      this.showToast('تم قطع الاتصال', 'success');
+    },
+
+    async syncMessages() {
+      this.syncing = true;
+      const r = await fetch('/api/v1/telegram/messages/sync', { method: 'POST' });
+      const data = await r.json();
+      this.syncing = false;
+      this.showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success && data.count > 0) setTimeout(() => location.reload(), 1500);
+    },
+
+    async analyzeMessages() {
+      const r = await fetch('/api/v1/telegram/messages/analyze', { method: 'POST' });
+      const data = await r.json();
+      this.showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success && data.count > 0) setTimeout(() => location.reload(), 1500);
+    },
+
+    openReplyModal(msg) {
+      if (msg.direction !== 'incoming') return;
+      this.replyModal = { open: true, messageId: msg.id, originalMsg: msg.content, senderName: msg.sender_name, chatTitle: msg.chat_title, text: '', sending: false };
+    },
+
+    async sendReply() {
+      if (!this.replyModal.text.trim()) return;
+      this.replyModal.sending = true;
+      const fd = new FormData();
+      fd.append('reply_text', this.replyModal.text);
+      const r = await fetch(`/api/v1/telegram/messages/${this.replyModal.messageId}/reply`, { method: 'POST', body: fd });
+      const data = await r.json();
+      this.replyModal.sending = false;
+      this.showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success) {
+        const msg = this.messages.find(m => m.id === this.replyModal.messageId);
+        if (msg) msg.reply_sent = true;
+        this.replyModal.open = false;
+      }
+    },
+
+    async markRead(msg) {
+      await fetch(`/api/v1/telegram/messages/${msg.id}/mark-read`, { method: 'POST' });
+      msg.is_read = true;
+    },
+
+    async addRule() {
+      this.savingRule = true;
+      const fd = new FormData();
+      Object.entries(this.ruleForm).forEach(([k,v]) => fd.append(k, v));
+      const r = await fetch('/api/v1/telegram/rules', { method: 'POST', body: fd });
+      const data = await r.json();
+      this.savingRule = false;
+      this.showToast(data.message, data.success ? 'success' : 'error');
+      if (data.success) {
+        const r2 = await fetch('/api/v1/telegram/rules');
+        const d2 = await r2.json();
+        this.rules = d2.rules;
+        this.ruleForm = { rule_name: '', target_type: 'all', target_chat_id: '', target_sender_username: '', keywords: '', reply_mode: 'manual', reply_template: '', reply_delay_seconds: 0, max_replies_per_hour: 10 };
+      }
+    },
+
+    async toggleRule(rule) {
+      await fetch(`/api/v1/telegram/rules/${rule.id}/toggle`, { method: 'POST' });
+      rule.is_active = !rule.is_active;
+    },
+
+    async deleteRule(id) {
+      if (!confirm('حذف هذه القاعدة؟')) return;
+      await fetch(`/api/v1/telegram/rules/${id}`, { method: 'DELETE' });
+      this.rules = this.rules.filter(r => r.id !== id);
+    },
+
+    targetLabel(t) { return { all: 'جميع الرسائل', user: 'مستخدم محدد', group: 'مجموعة محددة', keyword: 'كلمات مفتاحية' }[t] || t; },
+    replyModeLabel(m) { return { manual: 'يدوي', template: 'قالب ثابت', agent: 'وكيل ذكاء اصطناعي' }[m] || m; },
+
+    formatDate(d) { return d ? new Date(d).toLocaleString('ar-SA') : '-'; },
+
+    stringToColor(str) {
+      if (!str) return '#94a3b8';
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      const colors = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#06b6d4','#ef4444','#84cc16'];
+      return colors[Math.abs(hash) % colors.length];
+    },
+
+    showToast(msg, type = 'success') {
+      this.toast = msg;
+      this.toastType = type;
+      setTimeout(() => this.toast = null, 4000);
+    },
+  };
+}
+</script>
+{% endblock %}

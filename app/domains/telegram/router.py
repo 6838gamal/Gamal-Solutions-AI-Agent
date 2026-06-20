@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.domains.telegram import models as tg_models, service as tg_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/telegram", tags=["Telegram"])
+router = APIRouter(prefix="/telegram", tags=["Telegram"])
 
 
 @router.post("/connect/request-code")

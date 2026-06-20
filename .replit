@@ -37,7 +37,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python3 run.py"
+args = "python run.py"
 waitForPort = 5000
 
 [[ports]]

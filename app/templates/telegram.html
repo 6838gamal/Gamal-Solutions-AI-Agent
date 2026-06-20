@@ -90,102 +90,155 @@
   </div>
 
   <!-- ══════════════════════════════════════════════════════ -->
-  <!-- TAB 1: SETTINGS -->
+  <!-- TAB 1: SETTINGS — Step wizard -->
   <!-- ══════════════════════════════════════════════════════ -->
   <div x-show="tab === 'settings'">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-      <!-- API Credentials Card -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-6">
-        <h3 class="font-bold text-slate-800 text-lg mb-1">بيانات API تيليجرام</h3>
-        <p class="text-slate-500 text-sm mb-5">احصل على API ID و API Hash من <a href="https://my.telegram.org/apps" target="_blank" class="text-blue-600 underline">my.telegram.org/apps</a></p>
+    <!-- CONNECTED STATE -->
+    <template x-if="status === 'connected'">
+      <div class="bg-white rounded-2xl border border-green-200 p-8 text-center max-w-lg mx-auto">
+        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h3 class="font-black text-slate-800 text-xl mb-1" x-text="'مرحباً، ' + accountInfo + ' 👋'"></h3>
+        <p class="text-slate-500 text-sm mb-6">الحساب متصل بتيليجرام ويعمل بشكل صحيح</p>
+        <div class="bg-slate-50 rounded-xl p-4 mb-6 text-right space-y-2">
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">الحالة</span>
+            <span class="badge badge-green font-bold">متصل ✓</span>
+          </div>
+          <div class="flex justify-between text-sm">
+            <span class="text-slate-500">الرسائل المستوردة</span>
+            <span class="font-bold text-blue-600" x-text="totalMessages + ' رسالة'"></span>
+          </div>
+        </div>
+        <div class="flex gap-3 justify-center">
+          <button @click="tab='messages'; syncMessages()" class="btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            جلب الرسائل الآن
+          </button>
+          <button @click="disconnect()" class="btn-danger">قطع الاتصال</button>
+        </div>
+      </div>
+    </template>
 
-        <template x-if="status !== 'connected'">
+    <!-- SETUP WIZARD (not connected) -->
+    <template x-if="status !== 'connected'">
+      <div class="max-w-2xl mx-auto">
+
+        <!-- Step indicators -->
+        <div class="flex items-center gap-0 mb-8">
+          <!-- Step 1 -->
+          <div class="flex items-center gap-2 flex-1">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                 :class="status === 'disconnected' || status === 'error' ? 'bg-blue-600 text-white' : 'bg-green-500 text-white'">
+              <span x-show="status === 'disconnected' || status === 'error'">1</span>
+              <svg x-show="status !== 'disconnected' && status !== 'error'" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <span class="text-sm font-semibold" :class="status === 'disconnected' || status === 'error' ? 'text-blue-700' : 'text-green-700'">بيانات API والهاتف</span>
+          </div>
+          <div class="flex-1 h-0.5 mx-2" :class="status === 'pending_code' ? 'bg-blue-400' : 'bg-slate-200'"></div>
+          <!-- Step 2 -->
+          <div class="flex items-center gap-2 flex-1 justify-end">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                 :class="status === 'pending_code' ? 'bg-blue-600 text-white animate-pulse' : 'bg-slate-200 text-slate-400'">2</div>
+            <span class="text-sm font-semibold" :class="status === 'pending_code' ? 'text-blue-700' : 'text-slate-400'">رمز التحقق</span>
+          </div>
+        </div>
+
+        <!-- ── STEP 1: API credentials ── -->
+        <div x-show="status === 'disconnected' || status === 'error'"
+             class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.26 13.825l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.888.734z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-800">الخطوة الأولى — ربط حسابك</h3>
+              <p class="text-slate-500 text-xs">احصل على البيانات من <a href="https://my.telegram.org/apps" target="_blank" class="text-blue-600 underline font-medium">my.telegram.org/apps</a></p>
+            </div>
+          </div>
+
+          <template x-if="status === 'error'">
+            <div class="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 font-medium">⚠️ حدث خطأ في الاتصال — تحقق من البيانات وأعد المحاولة</div>
+          </template>
+
           <form @submit.prevent="requestCode()" class="space-y-4">
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1.5">API ID</label>
-              <input x-model="form.api_id" type="text" placeholder="مثال: 12345678" class="form-input" required />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">API ID <span class="text-red-500">*</span></label>
+                <input x-model="form.api_id" type="text" placeholder="مثال: 12345678" class="form-input" required />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">API Hash <span class="text-red-500">*</span></label>
+                <input x-model="form.api_hash" type="password" placeholder="الـ Hash السري" class="form-input" required />
+              </div>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1.5">API Hash</label>
-              <input x-model="form.api_hash" type="password" placeholder="أدخل API Hash" class="form-input" required />
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">رقم الهاتف (مع كود الدولة) <span class="text-red-500">*</span></label>
+              <input x-model="form.phone" type="tel" placeholder="مثال: +966501234567 أو +20123456789" class="form-input" dir="ltr" required />
+              <p class="text-xs text-slate-400 mt-1">سيتم إرسال رمز التحقق إلى تيليجرام على هذا الرقم</p>
             </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1.5">رقم الهاتف (مع كود الدولة)</label>
-              <input x-model="form.phone" type="tel" placeholder="مثال: +966501234567" class="form-input" required />
-            </div>
-            <button type="submit" class="btn-primary w-full justify-center" :disabled="requesting">
-              <svg class="w-4 h-4" :class="{'animate-spin': requesting}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-              <span x-text="requesting ? 'جاري الإرسال...' : 'إرسال رمز التحقق'"></span>
+            <button type="submit" class="btn-primary w-full justify-center py-3 text-base" :disabled="requesting">
+              <svg class="w-5 h-5" :class="{'animate-spin': requesting}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+              </svg>
+              <span x-text="requesting ? 'جاري إرسال الرمز...' : 'إرسال رمز التحقق إلى تيليجرام'"></span>
             </button>
           </form>
-        </template>
+        </div>
 
-        <template x-if="status === 'connected'">
-          <div class="text-center py-8">
-            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        <!-- ── STEP 2: Verification code ── -->
+        <div x-show="status === 'pending_code'"
+             class="bg-white rounded-2xl border-2 border-blue-300 p-6 shadow-lg">
+          <!-- Animated notification -->
+          <div class="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6 flex items-start gap-3">
+            <div class="text-2xl flex-shrink-0">📱</div>
+            <div>
+              <p class="text-amber-900 font-bold text-sm">تم إرسال رمز التحقق!</p>
+              <p class="text-amber-700 text-xs mt-0.5">افتح تطبيق تيليجرام على هاتفك وستجد رسالة برمز مكوّن من 5 أرقام، أو أدخل الرمز الذي وصل عبر SMS</p>
             </div>
-            <p class="font-bold text-slate-800 text-lg" x-text="'مرحباً، ' + accountInfo"></p>
-            <p class="text-slate-500 text-sm mt-1">الحساب متصل ويعمل بشكل صحيح</p>
           </div>
-        </template>
+
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-800">الخطوة الثانية — أدخل رمز التحقق</h3>
+              <p class="text-slate-500 text-xs" x-text="'الرقم: ' + (form.phone || '...')"></p>
+            </div>
+          </div>
+
+          <form @submit.prevent="verifyCode()" class="space-y-4">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-2">رمز التحقق</label>
+              <!-- Large prominent code input -->
+              <input x-model="form.code"
+                     x-ref="codeInput"
+                     type="text"
+                     inputmode="numeric"
+                     pattern="[0-9\s]*"
+                     placeholder="- - - - -"
+                     class="form-input text-center font-mono text-3xl tracking-[1rem] h-16 border-2 border-blue-300 focus:border-blue-500"
+                     maxlength="10"
+                     autocomplete="one-time-code"
+                     required />
+              <p class="text-center text-xs text-slate-400 mt-2">أدخل الرمز المكون من 5 أرقام الذي وصلك في تيليجرام</p>
+            </div>
+            <button type="submit" class="btn-primary w-full justify-center py-3 text-base" :disabled="verifying">
+              <svg class="w-5 h-5" :class="{'animate-spin': verifying}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span x-text="verifying ? 'جاري التحقق والاتصال...' : 'تأكيد الرمز والدخول'"></span>
+            </button>
+            <button type="button" @click="status='disconnected'; form.code=''"
+                    class="btn-secondary w-full justify-center text-sm">
+              ↩ العودة وتغيير رقم الهاتف
+            </button>
+          </form>
+        </div>
+
       </div>
-
-      <!-- Verification Code Card -->
-      <div class="bg-white rounded-2xl border border-slate-200 p-6">
-        <h3 class="font-bold text-slate-800 text-lg mb-1">التحقق من الهوية</h3>
-
-        <template x-if="status === 'pending_code'">
-          <div>
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
-              <p class="text-amber-800 text-sm font-medium">📱 تم إرسال رمز التحقق إلى تطبيق تيليجرام أو هاتفك</p>
-            </div>
-            <form @submit.prevent="verifyCode()" class="space-y-4">
-              <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-1.5">رمز التحقق</label>
-                <input x-model="form.code" type="text" placeholder="أدخل الرمز المكون من 5 أرقام" class="form-input text-center text-xl tracking-widest" maxlength="10" required />
-              </div>
-              <button type="submit" class="btn-primary w-full justify-center" :disabled="verifying">
-                <svg class="w-4 h-4" :class="{'animate-spin': verifying}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span x-text="verifying ? 'جاري التحقق...' : 'تأكيد الرمز وتسجيل الدخول'"></span>
-              </button>
-              <button type="button" @click="status='disconnected'" class="btn-secondary w-full justify-center">إعادة إدخال البيانات</button>
-            </form>
-          </div>
-        </template>
-
-        <template x-if="status !== 'pending_code' && status !== 'connected'">
-          <div class="text-center py-10 text-slate-400">
-            <svg class="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-            <p class="text-sm">أدخل بيانات API ورقم الهاتف أولاً</p>
-          </div>
-        </template>
-
-        <template x-if="status === 'connected'">
-          <div class="space-y-3 mt-2">
-            <div class="flex justify-between items-center py-2 border-b border-slate-100">
-              <span class="text-slate-500 text-sm">الحالة</span>
-              <span class="badge badge-green">متصل ✓</span>
-            </div>
-            <div class="flex justify-between items-center py-2 border-b border-slate-100">
-              <span class="text-slate-500 text-sm">المستخدم</span>
-              <span class="font-medium text-sm text-slate-800" x-text="accountInfo"></span>
-            </div>
-            <div class="flex justify-between items-center py-2">
-              <span class="text-slate-500 text-sm">الرسائل المستوردة</span>
-              <span class="font-bold text-blue-600" x-text="totalMessages"></span>
-            </div>
-          </div>
-        </template>
-
-        <template x-if="status === 'error'">
-          <div class="bg-red-50 border border-red-200 rounded-xl p-4 mt-4">
-            <p class="text-red-700 text-sm font-medium">⚠️ حدث خطأ في الاتصال. تحقق من البيانات وأعد المحاولة.</p>
-          </div>
-        </template>
-      </div>
-    </div>
+    </template>
   </div>
 
   <!-- ══════════════════════════════════════════════════════ -->

@@ -5,6 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.api.v1.api import api_router
+from app.api.public.router import router as public_router
 from app.web.router import router as web_router
 import os
 
@@ -50,8 +51,11 @@ async def favicon():
     return Response(status_code=204)
 
 
-# API routes
+# Internal API routes
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Public API routes (API-key authenticated)
+app.include_router(public_router, prefix="/api/public/v1")
 
 # Web (HTML) routes
 app.include_router(web_router)
@@ -128,6 +132,19 @@ def startup():
                 )""",
                 "ALTER TABLE telegram_accounts ADD COLUMN IF NOT EXISTS market_analysis JSONB",
                 "ALTER TABLE telegram_accounts ADD COLUMN IF NOT EXISTS market_analysis_at TIMESTAMP",
+                # API Keys table
+                """CREATE TABLE IF NOT EXISTS api_keys (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    key_hash VARCHAR(128) UNIQUE NOT NULL,
+                    key_prefix VARCHAR(12) NOT NULL,
+                    permissions JSONB DEFAULT '[]',
+                    is_active BOOLEAN DEFAULT TRUE,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    last_used_at TIMESTAMP,
+                    expires_at TIMESTAMP
+                )""",
             ]
             with engine.connect() as conn:
                 for sql in migrations:

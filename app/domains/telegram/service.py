@@ -222,6 +222,7 @@ def sync_messages(db: Session, account: TelegramAccount):
     finally:
         loop.close()
     count = 0
+    new_msgs = []
     for m in msgs:
         existing = db.query(TelegramMessage).filter_by(
             account_id=account.id,
@@ -229,14 +230,86 @@ def sync_messages(db: Session, account: TelegramAccount):
             chat_id=m["chat_id"]
         ).first()
         if not existing:
-            msg = TelegramMessage(
-                account_id=account.id,
-                **m
-            )
+            msg = TelegramMessage(account_id=account.id, **m)
             db.add(msg)
+            new_msgs.append(m)
             count += 1
     db.commit()
+
+    # ── تدفق البيانات: تيليجرام → CRM + المحادثات ─────────────────────────
+    for m in new_msgs:
+        if m.get("direction") == "incoming" and m.get("sender_name"):
+            try:
+                _flow_to_crm_and_conversations(db, m)
+            except Exception as fe:
+                logger.warning(f"[DataFlow] خطأ في تدفق البيانات: {fe}")
+
     return count
+
+
+def _flow_to_crm_and_conversations(db: Session, m: dict):
+    """تدفق رسالة تيليجرام → CRM (Customer) + المحادثات (Conversation + Message)."""
+    from app.domains.customers.models import Customer, CustomerStatus
+    from app.domains.conversations.models import (
+        Conversation, Message, Channel, ConversationStatus, MessageRole
+    )
+
+    sender_name     = m.get("sender_name", "مجهول")
+    sender_username = m.get("sender_username", "")
+    chat_id         = str(m.get("chat_id", ""))
+    chat_title      = m.get("chat_title", sender_name)
+    content         = m.get("content", "")
+    if not content:
+        return
+
+    # ── 1. Upsert Customer ──────────────────────────────────────────────────
+    virtual_email = (
+        f"tg_{sender_username}@telegram.local"
+        if sender_username
+        else f"tg_id_{hash(sender_name) % 999999}@telegram.local"
+    )
+    customer = db.query(Customer).filter_by(email=virtual_email).first()
+    if not customer:
+        customer = Customer(
+            name=sender_name,
+            email=virtual_email,
+            tags=["telegram"],
+            status=CustomerStatus.LEAD,
+            notes=f"أضيف تلقائياً من تيليجرام | القناة: {chat_title}",
+        )
+        db.add(customer)
+        db.flush()
+
+    # ── 2. Upsert Conversation (per chat_id) ────────────────────────────────
+    conv = db.query(Conversation).filter(
+        Conversation.customer_id == customer.id,
+        Conversation.channel == Channel.TELEGRAM,
+        Conversation.subject.like(f"%[tg:{chat_id}]%"),
+    ).first()
+    if not conv:
+        conv = Conversation(
+            customer_id=customer.id,
+            channel=Channel.TELEGRAM,
+            subject=f"{chat_title} [tg:{chat_id}]",
+            status=ConversationStatus.OPEN,
+            tags=["telegram"],
+        )
+        db.add(conv)
+        db.flush()
+
+    # ── 3. Add Message ──────────────────────────────────────────────────────
+    msg_obj = Message(
+        conversation_id=conv.id,
+        role=MessageRole.USER,
+        content=content,
+        metadata_extra={
+            "source":           "telegram",
+            "chat_id":          chat_id,
+            "sender_username":  sender_username,
+        },
+    )
+    db.add(msg_obj)
+    db.commit()
 
 
 def run_market_analysis(db: Session, account: TelegramAccount) -> dict:

@@ -450,3 +450,34 @@ def telegram_page(request: Request, db: Session = Depends(get_db)):
         "messages_json": json.dumps([msg_to_dict(m) for m in messages], ensure_ascii=False),
         "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
     })
+
+
+# ─── API Settings ───────────────────────────────────────────────────────────────
+
+@router.get("/api-settings", response_class=HTMLResponse)
+def api_settings_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    from app.domains.api_keys.service import list_keys
+    keys = list_keys(db)
+    keys_data = [
+        {
+            "id":           k.id,
+            "name":         k.name,
+            "key_prefix":   k.key_prefix,
+            "permissions":  k.permissions or [],
+            "is_active":    k.is_active,
+            "description":  k.description or "",
+            "created_at":   k.created_at.strftime("%Y-%m-%d %H:%M") if k.created_at else "—",
+            "last_used_at": k.last_used_at.strftime("%Y-%m-%d %H:%M") if k.last_used_at else "—",
+        }
+        for k in keys
+    ]
+    return templates.TemplateResponse("api_settings.html", {
+        "request":   request,
+        "user":      user,
+        "page":      "api-settings",
+        "keys":      keys_data,
+        "keys_json": json.dumps(keys_data, ensure_ascii=False),
+    })

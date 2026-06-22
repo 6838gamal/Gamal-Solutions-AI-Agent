@@ -359,6 +359,18 @@
                 <template x-if="msg.analysis_result.priority === 'عالي'">
                   <span class="badge badge-red text-xs">⚡ أولوية عالية</span>
                 </template>
+                <template x-if="msg.analysis_result.signal_type && msg.analysis_result.signal_type !== 'مؤشر عام'">
+                  <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                        :class="{
+                          'bg-emerald-100 text-emerald-700': msg.analysis_result.signal_color === 'emerald',
+                          'bg-blue-100 text-blue-700': msg.analysis_result.signal_color === 'blue',
+                          'bg-red-100 text-red-700': msg.analysis_result.signal_color === 'red',
+                          'bg-purple-100 text-purple-700': msg.analysis_result.signal_color === 'purple',
+                          'bg-orange-100 text-orange-700': msg.analysis_result.signal_color === 'orange',
+                          'bg-slate-100 text-slate-600': !msg.analysis_result.signal_color || msg.analysis_result.signal_color === 'slate',
+                        }"
+                        x-text="msg.analysis_result.signal_type"></span>
+                </template>
               </div>
             </template>
           </div>
@@ -853,6 +865,194 @@
                 </template>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- ═══ BUYER RADAR — أشخاص جاهزون للشراء ═══ -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-slate-800">🎯 رادار المشترين — User Intelligence</h3>
+              <p class="text-xs text-slate-500 mt-0.5">ترتيب المرسلين حسب احتمالية الشراء وقوة تأثيرهم</p>
+            </div>
+            <span class="badge badge-blue" x-text="(marketReport.buyer_radar?.length || 0) + ' شخص'"></span>
+          </div>
+          <template x-if="!marketReport.buyer_radar?.length">
+            <div class="px-5 py-8 text-center text-slate-400 text-sm">لا توجد بيانات مرسلين — اجلب رسائل ثم أعد التحليل</div>
+          </template>
+          <template x-if="marketReport.buyer_radar?.length">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-100">
+                    <th class="text-right px-5 py-3 font-semibold text-slate-600">#</th>
+                    <th class="text-right px-4 py-3 font-semibold text-slate-600">المرسل</th>
+                    <th class="text-right px-4 py-3 font-semibold text-slate-600">حالة الاستعداد</th>
+                    <th class="text-right px-4 py-3 font-semibold text-slate-600">احتمال الشراء</th>
+                    <th class="text-right px-4 py-3 font-semibold text-slate-600">التأثير</th>
+                    <th class="text-right px-4 py-3 font-semibold text-slate-600">إشارات الشراء</th>
+                    <th class="text-right px-4 py-3 font-semibold text-slate-600">الاهتمامات</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  <template x-for="(user, idx) in (marketReport.buyer_radar || []).slice(0,15)" :key="user.sender">
+                    <tr class="hover:bg-slate-50 transition-colors">
+                      <td class="px-5 py-3">
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+                             :class="idx === 0 ? 'bg-amber-400 text-white' : idx < 3 ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-500'"
+                             x-text="idx + 1"></div>
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="font-semibold text-slate-800 text-sm" x-text="user.sender"></div>
+                        <div class="text-xs text-slate-400" x-text="user.username ? '@' + user.username : user.message_count + ' رسالة'"></div>
+                      </td>
+                      <td class="px-4 py-3">
+                        <span class="text-xs px-2.5 py-1 rounded-full font-semibold"
+                              :class="{
+                                'bg-red-100 text-red-700': user.readiness_color === 'red',
+                                'bg-amber-100 text-amber-700': user.readiness_color === 'amber',
+                                'bg-orange-100 text-orange-700': user.readiness_color === 'orange',
+                                'bg-slate-100 text-slate-600': user.readiness_color === 'slate',
+                              }"
+                              x-text="user.readiness"></span>
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                          <div class="w-16 bg-slate-100 rounded-full h-2">
+                            <div class="h-2 rounded-full transition-all"
+                                 :class="user.buying_probability >= 60 ? 'bg-red-500' : user.buying_probability >= 35 ? 'bg-amber-400' : 'bg-blue-400'"
+                                 :style="'width:' + user.buying_probability + '%'"></div>
+                          </div>
+                          <span class="text-xs font-bold text-slate-700" x-text="user.buying_probability + '%'"></span>
+                        </div>
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="flex items-center gap-1.5">
+                          <div class="w-10 bg-slate-100 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full bg-indigo-400 transition-all"
+                                 :style="'width:' + user.influence_score + '%'"></div>
+                          </div>
+                          <span class="text-xs text-slate-500" x-text="user.influence_score"></span>
+                        </div>
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="flex gap-1">
+                          <span class="bg-emerald-50 text-emerald-700 text-xs px-1.5 py-0.5 rounded" x-text="user.buying_signals + ' 🛒'"></span>
+                          <span class="bg-orange-50 text-orange-700 text-xs px-1.5 py-0.5 rounded" x-text="user.pain_signals + ' ⚠️'"></span>
+                        </div>
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="flex flex-wrap gap-1">
+                          <template x-for="interest in (user.interests || []).slice(0,3)" :key="interest">
+                            <span class="bg-blue-50 text-blue-700 text-xs px-1.5 py-0.5 rounded" x-text="interest"></span>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
+
+        <!-- ═══ OPPORTUNITY CLUSTERS — تجميع الفرص ═══ -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100">
+            <h3 class="font-bold text-slate-800">🧩 مجموعات الفرص السوقية — Opportunity Clusters</h3>
+            <p class="text-xs text-slate-500 mt-0.5">تجميع الفرص المتشابهة في حاجة سوقية مركّبة واحدة</p>
+          </div>
+          <template x-if="!marketReport.opportunity_clusters?.length">
+            <div class="px-5 py-8 text-center text-slate-400 text-sm">لا توجد مجموعات — تحتاج لمزيد من الرسائل المصنّفة</div>
+          </template>
+          <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <template x-for="cluster in (marketReport.opportunity_clusters || [])" :key="cluster.name">
+              <div class="rounded-xl border p-4 hover:shadow-sm transition-shadow"
+                   :class="{
+                     'border-purple-200 bg-purple-50': cluster.color === 'purple',
+                     'border-blue-200 bg-blue-50': cluster.color === 'blue',
+                     'border-emerald-200 bg-emerald-50': cluster.color === 'emerald',
+                     'border-amber-200 bg-amber-50': cluster.color === 'amber',
+                   }">
+                <div class="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <div class="font-bold text-slate-800 text-sm" x-text="cluster.icon + ' ' + cluster.name"></div>
+                    <div class="text-xs text-slate-500 mt-0.5" x-text="cluster.description"></div>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <div class="text-lg font-black text-slate-700" x-text="cluster.composite_score"></div>
+                    <div class="text-xs text-slate-400">نقطة</div>
+                  </div>
+                </div>
+                <div class="bg-white/70 rounded-lg h-1.5 mb-3">
+                  <div class="h-1.5 rounded-lg transition-all"
+                       :class="{
+                         'bg-purple-500': cluster.color === 'purple',
+                         'bg-blue-500': cluster.color === 'blue',
+                         'bg-emerald-500': cluster.color === 'emerald',
+                         'bg-amber-400': cluster.color === 'amber',
+                       }"
+                       :style="'width:' + cluster.composite_score + '%'"></div>
+                </div>
+                <div class="flex flex-wrap gap-1.5 mb-2">
+                  <template x-for="sub in (cluster.sub_opportunities || [])" :key="sub.label">
+                    <div class="bg-white/80 border border-white rounded-lg px-2 py-1 text-xs">
+                      <span class="font-medium text-slate-700" x-text="sub.label"></span>
+                      <span class="text-slate-400 ms-1" x-text="'×' + sub.freq"></span>
+                    </div>
+                  </template>
+                </div>
+                <div class="flex justify-between text-xs text-slate-500">
+                  <span>حجم السوق: <span class="font-semibold text-slate-700" x-text="cluster.market_size"></span></span>
+                  <span x-text="cluster.total_messages + ' رسالة إجمالية'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ═══ SILENT MARKET GAPS — الثغرات الصامتة ═══ -->
+        <div class="bg-gradient-to-l from-slate-800 to-slate-900 rounded-2xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-white">🔇 الثغرات الصامتة — Silent Market Gaps</h3>
+              <p class="text-slate-400 text-xs mt-0.5">احتياجات يذكرها السوق باستمرار ولا يجد لها حلولاً كافية</p>
+            </div>
+            <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-semibold"
+                  x-text="(marketReport.silent_market_gaps?.length || 0) + ' ثغرة صامتة'"></span>
+          </div>
+          <div class="p-5">
+            <template x-if="!marketReport.silent_market_gaps?.length">
+              <div class="text-center text-slate-500 py-8 text-sm">لم تُكتشف ثغرات صامتة — السوق مُغطّى بشكل جيد</div>
+            </template>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <template x-for="sgap in (marketReport.silent_market_gaps || [])" :key="sgap.key">
+                <div class="bg-white/10 border border-white/10 rounded-xl p-4 hover:bg-white/15 transition-colors">
+                  <div class="flex items-start justify-between gap-2 mb-2">
+                    <div class="font-semibold text-white text-sm leading-snug" x-text="sgap.label"></div>
+                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0"
+                          :class="{
+                            'bg-red-500/30 text-red-300': sgap.severity.includes('🔴'),
+                            'bg-amber-500/30 text-amber-300': sgap.severity.includes('🟡'),
+                            'bg-blue-500/30 text-blue-300': sgap.severity.includes('🔵'),
+                          }"
+                          x-text="sgap.severity"></span>
+                  </div>
+                  <p class="text-slate-400 text-xs leading-relaxed mb-3" x-text="sgap.gap"></p>
+                  <div class="flex justify-between items-center text-xs mb-2">
+                    <span class="text-slate-500">ذُكر <span class="text-white font-bold" x-text="sgap.total_mentions"></span> مرة</span>
+                    <span class="text-slate-500">حلول موجودة: <span class="text-amber-300 font-bold" x-text="sgap.solution_mentions"></span></span>
+                  </div>
+                  <div class="bg-white/10 rounded-full h-1.5 mb-2">
+                    <div class="h-1.5 rounded-full bg-gradient-to-r from-red-400 to-orange-400 transition-all"
+                         :style="'width:' + sgap.score + '%'"></div>
+                  </div>
+                  <template x-if="sgap.sample">
+                    <p class="text-slate-500 text-xs italic mt-2 leading-relaxed" x-text="'\"' + sgap.sample + '\"'"></p>
+                  </template>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 

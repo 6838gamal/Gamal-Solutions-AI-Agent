@@ -296,13 +296,40 @@ def analyze_message(content: str) -> dict:
     if "؟" in content or "?" in content:
         intent = "استفسار"
 
+    # ── Signal Type Detection (master prompt classification) ──────────────────
+    buying_kw  = ["اشتري","أشتري","سعر","بكم","كم تكلفة","كم الثمن","buy","price","purchase","order","pay"]
+    opp_kw     = ["أريد","أبغى","أحتاج","محتاج","ابغى","need","want","looking for","searching"]
+    gap_kw     = ["ما في","لا يوجد","ما وجدت","ما لقيت","غير متوفر","not available","can't find","don't know"]
+    hidden_kw  = ["لو كان","أتمنى","نتمنى","لو يوجد","wish","would be nice","if only","يا ريت"]
+    pain_kw    = ["مشكلة","خطأ","لا يعمل","تعبت","problem","issue","broken","frustrated"]
+
+    signal_type = "مؤشر عام"
+    signal_color = "slate"
+    if any(k in content_lower for k in buying_kw):
+        signal_type  = "إشارة شراء 🛒"
+        signal_color = "emerald"
+    elif any(k in content_lower for k in opp_kw):
+        signal_type  = "إشارة فرصة 🎯"
+        signal_color = "blue"
+    elif any(k in content_lower for k in gap_kw):
+        signal_type  = "ثغرة سوقية 🕳️"
+        signal_color = "red"
+    elif any(k in content_lower for k in hidden_kw):
+        signal_type  = "طلب ضمني 💡"
+        signal_color = "purple"
+    elif any(k in content_lower for k in pain_kw):
+        signal_type  = "نقطة ألم ⚠️"
+        signal_color = "orange"
+
     return {
-        "sentiment": sentiment,
-        "intent": intent,
-        "priority": priority,
-        "keywords": list(set(keywords)),
-        "word_count": len(content.split()) if content else 0,
-        "char_count": len(content) if content else 0,
+        "sentiment":   sentiment,
+        "intent":      intent,
+        "priority":    priority,
+        "keywords":    list(set(keywords)),
+        "word_count":  len(content.split()) if content else 0,
+        "char_count":  len(content) if content else 0,
+        "signal_type": signal_type,
+        "signal_color": signal_color,
     }
 
 

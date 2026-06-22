@@ -540,6 +540,228 @@ def trend_analysis(messages: List[Dict]) -> Dict:
     }
 
 
+# ─── User Intelligence (Buyer Radar) ──────────────────────────────────────────
+
+BUYING_KW = ["اشتري","أشتري","أريد أشتري","ابغى اشتري","سعر","بكم","كم تكلفة","كم الثمن",
+             "buy","purchase","price","how much","cost","order","checkout","pay"]
+PAIN_KW   = ["مشكلة","خطأ","لا يعمل","معطل","تعبت","ضعيف","سيء","رديء",
+             "problem","issue","broken","error","not working","frustrated","slow"]
+INFLU_KW  = ["أنصح","أفضل","أقترح","recommend","suggest","best","من تجربتي","جربت"]
+
+def user_intelligence(messages: List[Dict]) -> List[Dict]:
+    """Build a buyer profile for every incoming sender."""
+    by_user: Dict[str, List] = defaultdict(list)
+    for m in messages:
+        if m.get("direction") == "incoming":
+            key = m.get("sender_name") or "مجهول"
+            by_user[key].append(m)
+
+    results = []
+    for sender, msgs in by_user.items():
+        total = len(msgs)
+        content_all = " ".join((m.get("content","") or "") for m in msgs).lower()
+
+        buying_msgs   = sum(1 for m in msgs if any(k in (m.get("content","") or "").lower() for k in BUYING_KW))
+        pain_msgs     = sum(1 for m in msgs if any(k in (m.get("content","") or "").lower() for k in PAIN_KW))
+        question_msgs = sum(1 for m in msgs if "؟" in (m.get("content","") or "") or "?" in (m.get("content","") or ""))
+        influ_msgs    = sum(1 for m in msgs if any(k in (m.get("content","") or "").lower() for k in INFLU_KW))
+
+        buying_prob   = min(100, int((buying_msgs / max(total,1)) * 200 + total * 1.5))
+        influence_score = min(100, int((influ_msgs + question_msgs) / max(total,1) * 80 + total * 2))
+
+        toks: Counter = Counter()
+        for m in msgs:
+            toks.update(tokenize(m.get("content","")))
+        interests = [t for t, _ in toks.most_common(5)]
+        chats     = list({m.get("chat_title","") for m in msgs if m.get("chat_title")})[:3]
+
+        if buying_prob >= 60:
+            readiness       = "جاهز للشراء 🔥"
+            readiness_color = "red"
+        elif buying_prob >= 35:
+            readiness       = "مهتم ومتابع 👀"
+            readiness_color = "amber"
+        elif pain_msgs > 0:
+            readiness       = "يعاني من مشكلة 😟"
+            readiness_color = "orange"
+        else:
+            readiness       = "مراقب 👁️"
+            readiness_color = "slate"
+
+        username   = msgs[0].get("sender_username","") if msgs else ""
+        last_msg   = max((m.get("received_at") or "" for m in msgs), default="")
+
+        results.append({
+            "sender":           sender,
+            "username":         username,
+            "message_count":    total,
+            "buying_signals":   buying_msgs,
+            "pain_signals":     pain_msgs,
+            "question_count":   question_msgs,
+            "buying_probability": buying_prob,
+            "influence_score":  influence_score,
+            "interests":        interests,
+            "active_chats":     chats,
+            "readiness":        readiness,
+            "readiness_color":  readiness_color,
+            "last_active":      str(last_msg)[:10] if last_msg else "—",
+        })
+
+    return sorted(results, key=lambda x: -x["buying_probability"])[:20]
+
+
+# ─── Opportunity Clusters ──────────────────────────────────────────────────────
+
+CLUSTER_DEFS = [
+    {
+        "name": "إدارة الأعمال والأتمتة",
+        "icon": "⚙️",
+        "color": "purple",
+        "opp_keys": ["طلب_ميزة","طلب_منتج"],
+        "desc": "الطلب على أدوات تنظيم وأتمتة العمليات التجارية",
+        "market_size": "كبير جداً",
+    },
+    {
+        "name": "خدمة العملاء الذكية",
+        "icon": "📞",
+        "color": "blue",
+        "opp_keys": ["خدمة_عملاء","طلب_منتج"],
+        "desc": "حاجة السوق لنظام دعم عملاء سريع وذكي 24/7",
+        "market_size": "كبير",
+    },
+    {
+        "name": "فرص البيع والتسعير",
+        "icon": "💰",
+        "color": "emerald",
+        "opp_keys": ["استفسار_سعر","مخاوف_جودة"],
+        "desc": "إشارات نية شراء قوية مع حساسية سعرية — فرصة تسعير مرن",
+        "market_size": "متوسط",
+    },
+    {
+        "name": "نمو الشبكة والشراكات",
+        "icon": "🤝",
+        "color": "amber",
+        "opp_keys": ["فرصة_شراكة","مقارنة_منافس"],
+        "desc": "فرص توسع عبر الشراكات التجارية وشبكات التوزيع",
+        "market_size": "متوسط",
+    },
+]
+
+
+def opportunity_clusters(messages: List[Dict], opportunities: List[Dict]) -> List[Dict]:
+    """Group detected opportunities into compound market clusters."""
+    opp_by_key = {o["key"]: o for o in opportunities}
+    results = []
+
+    for cdef in CLUSTER_DEFS:
+        matched = [opp_by_key[k] for k in cdef["opp_keys"] if k in opp_by_key]
+        if not matched:
+            continue
+        total_freq = sum(o.get("frequency", 0) for o in matched)
+        if total_freq < 1:
+            continue
+        avg_score  = int(sum(o.get("score", 0) for o in matched) / max(len(matched), 1))
+        all_chats  = list({c for o in matched for c in (o.get("active_chats") or [])})[:5]
+        comp_score = min(100, total_freq * 4 + avg_score // 2)
+
+        results.append({
+            "name":         cdef["name"],
+            "icon":         cdef["icon"],
+            "color":        cdef["color"],
+            "description":  cdef["desc"],
+            "market_size":  cdef["market_size"],
+            "total_messages": total_freq,
+            "avg_score":    avg_score,
+            "composite_score": comp_score,
+            "active_chats": all_chats,
+            "sub_opportunities": [
+                {"label": o["label"], "freq": o["frequency"], "score": o["score"]}
+                for o in matched
+            ],
+        })
+
+    return sorted(results, key=lambda x: -x["composite_score"])
+
+
+# ─── Silent Market Gaps ────────────────────────────────────────────────────────
+
+SILENT_PATTERNS = [
+    {
+        "key": "crm_demand",
+        "label": "🏢 CRM — إدارة علاقات العملاء",
+        "keywords": ["إدارة عملاء","قاعدة عملاء","متابعة عملاء","crm","customer management","عميل","client"],
+        "gap": "السوق يبحث عن CRM مبسط — فجوة واضحة في الحلول المتاحة",
+    },
+    {
+        "key": "automation_gap",
+        "label": "🤖 أتمتة المهام اليدوية",
+        "keywords": ["يدوي","تعبت","مرهق","وقت طويل","بطيء","manual","tedious","time consuming","عمل يدوي"],
+        "gap": "شكاوى من العمل اليدوي دون وجود حل أتمتة كافٍ",
+    },
+    {
+        "key": "analytics_gap",
+        "label": "📊 تقارير وتحليلات الأعمال",
+        "keywords": ["تقرير","إحصاء","أداء","نتائج","إحصائيات","report","analytics","statistics","performance"],
+        "gap": "طلب متكرر على التقارير التحليلية دون توفرها بشكل كافٍ",
+    },
+    {
+        "key": "training_gap",
+        "label": "📚 محتوى تعليمي وتدريبي",
+        "keywords": ["كيف","تعلم","شرح","دورة","تدريب","course","tutorial","learn","how to","شرح لي"],
+        "gap": "احتياج واضح للمحتوى التعليمي — السوق يسأل ولا يجد إجابات كافية",
+    },
+    {
+        "key": "integration_gap",
+        "label": "🔗 ربط الأنظمة والتكامل",
+        "keywords": ["ربط","تكامل","api","متصل","واجهة برمجية","integrate","connect","sync","webhook"],
+        "gap": "طلب على ربط الأنظمة المتعددة — سوق التكاملات غير مشبَع",
+    },
+    {
+        "key": "pricing_gap",
+        "label": "💸 حلول تسعير مرنة",
+        "keywords": ["غالي","باهظ","مو مناسب","مش مناسب","ما يستاهل","expensive","overpriced","too much","costly","حزمة أرخص"],
+        "gap": "حساسية سعرية عالية — فرصة تقديم حزم مرنة وأسعار تنافسية",
+    },
+]
+
+SOLUTION_WORDS = ["استخدم","جرب","ننصح","موجود","يوجد","توجد","حل","available",
+                  "solution","try","use","found","وجدنا","لقينا"]
+
+
+def silent_market_gaps(messages: List[Dict]) -> List[Dict]:
+    """Detect market needs that are frequently mentioned but rarely answered."""
+    results = []
+    for pat in SILENT_PATTERNS:
+        matching = [m for m in messages
+                    if any(k.lower() in (m.get("content","") or "").lower() for k in pat["keywords"])]
+        if not matching:
+            continue
+        freq = len(matching)
+        sol_count = sum(1 for m in matching
+                        if any(sw in (m.get("content","") or "").lower() for sw in SOLUTION_WORDS))
+        intensity = freq - sol_count
+        if intensity < 1:
+            continue
+        score = min(100, intensity * 12)
+        chats  = list({m.get("chat_title","") for m in matching if m.get("chat_title")})[:3]
+        sample = next((m.get("content","")[:120] for m in matching if m.get("content","")), "")
+
+        results.append({
+            "key":             pat["key"],
+            "label":           pat["label"],
+            "gap":             pat["gap"],
+            "total_mentions":  freq,
+            "solution_mentions": sol_count,
+            "gap_intensity":   intensity,
+            "score":           score,
+            "active_chats":    chats,
+            "sample":          sample,
+            "severity": "حرج 🔴" if intensity > 10 else "عالٍ 🟡" if intensity > 4 else "متوسط 🔵",
+        })
+
+    return sorted(results, key=lambda x: -x["score"])
+
+
 def channel_insights(messages: List[Dict]) -> List[Dict]:
     by_chat: Dict[str, List] = defaultdict(list)
     for m in messages:
@@ -684,25 +906,31 @@ def run_deep_analysis(messages: List[Dict]) -> Dict[str, Any]:
     incoming = [m for m in messages if m.get("direction") != "outgoing"]
     corpus = incoming if incoming else messages
 
-    topics = extract_topics(corpus)
+    topics        = extract_topics(corpus)
     opportunities = detect_opportunities(corpus)
-    gaps = detect_gaps(corpus)
-    demand = detect_demand_signals(corpus)
-    trends = trend_analysis(corpus)
-    channels = channel_insights(corpus)
-    kw_cats = keyword_categories(corpus)
-    matrix = priority_matrix(opportunities, gaps, corpus)
-    dashboard = executive_dashboard(opportunities, gaps, topics, demand, kw_cats, corpus)
+    gaps          = detect_gaps(corpus)
+    demand        = detect_demand_signals(corpus)
+    trends        = trend_analysis(corpus)
+    channels      = channel_insights(corpus)
+    kw_cats       = keyword_categories(corpus)
+    matrix        = priority_matrix(opportunities, gaps, corpus)
+    dashboard     = executive_dashboard(opportunities, gaps, topics, demand, kw_cats, corpus)
+    buyer_radar   = user_intelligence(corpus)
+    clusters      = opportunity_clusters(corpus, opportunities)
+    silent_gaps   = silent_market_gaps(corpus)
 
     return {
-        "summary": dashboard,
-        "priority_matrix": matrix,
-        "keyword_categories": kw_cats,
-        "topics": topics,
-        "opportunities": opportunities,
-        "gaps": gaps,
-        "demand_signals": demand,
-        "trends": trends,
-        "channel_insights": channels,
-        "generated_at": datetime.utcnow().isoformat(),
+        "summary":             dashboard,
+        "priority_matrix":     matrix,
+        "keyword_categories":  kw_cats,
+        "topics":              topics,
+        "opportunities":       opportunities,
+        "gaps":                gaps,
+        "demand_signals":      demand,
+        "trends":              trends,
+        "channel_insights":    channels,
+        "buyer_radar":         buyer_radar,
+        "opportunity_clusters": clusters,
+        "silent_market_gaps":  silent_gaps,
+        "generated_at":        datetime.utcnow().isoformat(),
     }

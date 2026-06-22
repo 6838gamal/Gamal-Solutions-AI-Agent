@@ -402,16 +402,40 @@
     <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
       <div>
         <h2 class="font-black text-slate-800 text-lg">🧠 ذكاء السوق العميق</h2>
-        <p class="text-slate-500 text-sm" x-text="marketReport ? 'آخر تحليل: ' + (marketReport.generated_at ? marketReport.generated_at.slice(0,10) : '—') : 'لم يتم التحليل بعد — اضغط تحليل السوق'"></p>
+        <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+          <p class="text-slate-500 text-sm" x-text="marketReport ? 'آخر تحليل: ' + (marketReport.generated_at ? marketReport.generated_at.slice(0,10) : '—') : 'لم يتم التحليل بعد'"></p>
+          <!-- Auto-update live indicator -->
+          <template x-if="autoAnalyzing">
+            <span class="inline-flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2.5 py-1 font-medium">
+              <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+              جاري التحديث التلقائي...
+            </span>
+          </template>
+          <template x-if="!autoAnalyzing && lastAutoUpdate">
+            <span class="inline-flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-1 font-medium">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              تحديث تلقائي — آخر تحديث: <span x-text="lastAutoUpdate"></span>
+            </span>
+          </template>
+          <!-- Auto toggle -->
+          <label class="inline-flex items-center gap-2 cursor-pointer select-none" title="تشغيل/إيقاف التحديث التلقائي">
+            <span class="text-xs text-slate-500">تلقائي</span>
+            <div class="relative">
+              <input type="checkbox" class="sr-only peer" x-model="autoAnalysisEnabled">
+              <div class="w-9 h-5 bg-slate-200 peer-checked:bg-blue-500 rounded-full transition-colors"></div>
+              <div class="absolute top-0.5 start-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4 rtl:peer-checked:-translate-x-4"></div>
+            </div>
+          </label>
+        </div>
       </div>
       <div class="flex gap-2">
-        <button @click="runMarketAnalysis()" :disabled="analyzingMarket"
-                class="btn-primary" :class="{'opacity-70': analyzingMarket}">
+        <button @click="runMarketAnalysis()" :disabled="analyzingMarket || autoAnalyzing"
+                class="btn-primary" :class="{'opacity-70': analyzingMarket || autoAnalyzing}">
           <svg class="w-4 h-4" :class="{'animate-spin': analyzingMarket}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.346A3.975 3.975 0 0112 16a3.975 3.975 0 01-2.828-1.172l-.347-.347z"/>
           </svg>
-          <span x-text="analyzingMarket ? 'جاري التحليل...' : '🔍 تحليل السوق الآن'"></span>
+          <span x-text="analyzingMarket ? 'جاري التحليل...' : '🔍 تحليل الآن'"></span>
         </button>
         <a href="/analytics" class="btn-secondary">عرض في التحليلات ↗</a>
       </div>
@@ -1332,6 +1356,9 @@ function telegramApp() {
     verifying: false,
     validating: false,
     analyzingMarket: false,
+    autoAnalyzing: false,
+    autoAnalysisEnabled: true,
+    lastAutoUpdate: null,
     marketReport: null,
     savingRule: false,
     msgFilter: '',
@@ -1352,6 +1379,7 @@ function telegramApp() {
       this.loadMarketReport();
       if (this.status === 'connected') {
         this._startAutoPoll();
+        this._startAutoAnalysis();
       }
     },
 
@@ -1367,10 +1395,34 @@ function telegramApp() {
             this._knownTotal = data.total;
             await this._refreshMessages();
             this.lastSyncTime = new Date().toLocaleTimeString('ar-SA');
-            this.showToast(`📩 وصلت ${diff} رسالة جديدة تلقائياً`, 'success');
+            this.showToast(`📩 وصلت ${diff} رسالة جديدة — جاري تحديث التحليل...`, 'success');
+            await this._silentAnalysis();
           }
         } catch(e) { /* silent */ }
       }, 30000);
+    },
+
+    _startAutoAnalysis() {
+      setInterval(async () => {
+        if (!this.autoAnalysisEnabled || this.analyzingMarket || this.autoAnalyzing) return;
+        if (this.totalMessages === 0) return;
+        await this._silentAnalysis();
+      }, 300000);
+    },
+
+    async _silentAnalysis() {
+      if (this.autoAnalyzing || this.analyzingMarket) return;
+      this.autoAnalyzing = true;
+      try {
+        await fetch('/api/v1/telegram/messages/analyze', { method: 'POST' });
+        const r = await fetch('/api/v1/telegram/analysis/market', { method: 'POST' });
+        const data = await r.json();
+        if (data.success && data.result) {
+          this.marketReport = data.result;
+          this.lastAutoUpdate = new Date().toLocaleTimeString('ar-SA');
+        }
+      } catch(e) { /* silent */ }
+      finally { this.autoAnalyzing = false; }
     },
 
     async _refreshMessages() {
@@ -1490,7 +1542,13 @@ function telegramApp() {
     async loadMarketReport() {
       const r = await fetch('/api/v1/telegram/analysis/market');
       const data = await r.json();
-      if (data.has_data) this.marketReport = data.result;
+      if (data.has_data) {
+        this.marketReport = data.result;
+        if (data.analyzed_at) {
+          const d = new Date(data.analyzed_at);
+          this.lastAutoUpdate = d.toLocaleTimeString('ar-SA');
+        }
+      }
     },
 
     async validateSession() {

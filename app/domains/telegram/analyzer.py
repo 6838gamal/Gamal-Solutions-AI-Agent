@@ -323,6 +323,8 @@ def keyword_categories(messages: List[Dict]) -> List[Dict]:
                     matching_words[h] += 1
         if msg_count == 0:
             continue
+        matched_msgs = [m for m in messages
+                        if any(kw.lower() in (m.get("content","") or "").lower() for kw in cat["keywords"])]
         results.append({
             "key": cat_key,
             "label": cat["label"],
@@ -330,6 +332,15 @@ def keyword_categories(messages: List[Dict]) -> List[Dict]:
             "msg_count": msg_count,
             "top_keywords": [{"word": w, "count": c} for w, c in matching_words.most_common(6)],
             "intensity": "عالية 🔥" if msg_count > 20 else "متوسطة" if msg_count > 5 else "منخفضة",
+            "message_samples": [
+                {
+                    "content":     (m.get("content","") or "")[:250],
+                    "sender_name": m.get("sender_name","مجهول") or "مجهول",
+                    "chat_title":  m.get("chat_title","—") or "—",
+                    "received_at": str(m.get("received_at",""))[:16],
+                }
+                for m in matched_msgs[:5]
+            ],
         })
     return sorted(results, key=lambda x: -x["msg_count"])
 
@@ -418,6 +429,15 @@ def detect_opportunities(messages: List[Dict]) -> List[Dict]:
             "current_solutions": meta.get("current_solutions", ""),
             "solution_weaknesses": meta.get("solution_weaknesses", ""),
             "sample": (matching[0].get("content", "") or "")[:160] if matching else "",
+            "message_samples": [
+                {
+                    "content":     (m.get("content", "") or "")[:250],
+                    "sender_name": m.get("sender_name", "مجهول") or "مجهول",
+                    "chat_title":  m.get("chat_title", "—") or "—",
+                    "received_at": str(m.get("received_at", ""))[:16],
+                }
+                for m in matching[:5]
+            ],
         })
 
     return sorted(results, key=lambda x: -x["score"])
@@ -448,6 +468,15 @@ def detect_gaps(messages: List[Dict]) -> List[Dict]:
             "opportunity": meta["opportunity"],
             "severity": "حرج 🔴" if score > 70 else "تحذير 🟡" if score > 35 else "منخفض 🟢",
             "sample": (matching[0].get("content", "") or "")[:160] if matching else "",
+            "message_samples": [
+                {
+                    "content":     (m.get("content", "") or "")[:250],
+                    "sender_name": m.get("sender_name", "مجهول") or "مجهول",
+                    "chat_title":  m.get("chat_title", "—") or "—",
+                    "received_at": str(m.get("received_at", ""))[:16],
+                }
+                for m in matching[:5]
+            ],
         })
 
     return sorted(results, key=lambda x: -x["score"])
@@ -591,6 +620,15 @@ def user_intelligence(messages: List[Dict]) -> List[Dict]:
         username   = msgs[0].get("sender_username","") if msgs else ""
         last_msg   = max((m.get("received_at") or "" for m in msgs), default="")
 
+        top_msgs = sorted(
+            [m for m in msgs if (m.get("content","") or "").strip()],
+            key=lambda m: (
+                any(k in (m.get("content","") or "").lower() for k in BUYING_KW),
+                any(k in (m.get("content","") or "").lower() for k in PAIN_KW),
+            ),
+            reverse=True
+        )[:5]
+
         results.append({
             "sender":           sender,
             "username":         username,
@@ -605,6 +643,14 @@ def user_intelligence(messages: List[Dict]) -> List[Dict]:
             "readiness":        readiness,
             "readiness_color":  readiness_color,
             "last_active":      str(last_msg)[:10] if last_msg else "—",
+            "top_messages": [
+                {
+                    "content":     (m.get("content","") or "")[:250],
+                    "chat_title":  m.get("chat_title","—") or "—",
+                    "received_at": str(m.get("received_at",""))[:16],
+                }
+                for m in top_msgs
+            ],
         })
 
     return sorted(results, key=lambda x: -x["buying_probability"])[:20]
@@ -757,6 +803,15 @@ def silent_market_gaps(messages: List[Dict]) -> List[Dict]:
             "active_chats":    chats,
             "sample":          sample,
             "severity": "حرج 🔴" if intensity > 10 else "عالٍ 🟡" if intensity > 4 else "متوسط 🔵",
+            "message_samples": [
+                {
+                    "content":     (m.get("content","") or "")[:250],
+                    "sender_name": m.get("sender_name","مجهول") or "مجهول",
+                    "chat_title":  m.get("chat_title","—") or "—",
+                    "received_at": str(m.get("received_at",""))[:16],
+                }
+                for m in matching[:5]
+            ],
         })
 
     return sorted(results, key=lambda x: -x["score"])

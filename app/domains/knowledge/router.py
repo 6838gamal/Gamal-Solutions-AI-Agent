@@ -254,6 +254,71 @@ def update_document(
     return doc
 
 
+def _build_training_json(doc) -> str:
+    """Convert a document's raw content into a clean structured JSON for agent training."""
+    import json as _json
+    raw_text = doc.content or ""
+
+    # Split into non-empty paragraphs
+    paragraphs = [p.strip() for p in raw_text.split("\n") if p.strip()]
+
+    # Try to detect simple section headers (short lines ending with : or all-caps)
+    sections = []
+    current_section = {"heading": None, "text": []}
+    for para in paragraphs:
+        is_heading = (
+            len(para) < 80 and (
+                para.endswith(":") or
+                para.endswith("：") or
+                (para.isupper() and len(para.split()) <= 8) or
+                para.startswith("#")
+            )
+        )
+        if is_heading:
+            if current_section["text"]:
+                sections.append(current_section)
+            current_section = {"heading": para.lstrip("#").strip(": ："), "text": []}
+        else:
+            current_section["text"].append(para)
+    if current_section["text"] or current_section["heading"]:
+        sections.append(current_section)
+
+    # Flatten sections into dicts with joined text
+    sections_out = [
+        {
+            "heading": s["heading"],
+            "text": " ".join(s["text"]),
+        }
+        for s in sections
+        if s["text"]
+    ]
+
+    word_count = len(raw_text.split())
+    char_count = len(raw_text)
+
+    structured = {
+        "document": {
+            "title":       doc.title or "",
+            "title_ar":    doc.title_ar or "",
+            "type":        str(doc.doc_type.value) if doc.doc_type else "other",
+            "category":    (doc.category.name_ar or doc.category.name) if doc.category else None,
+            "version":     doc.version or "1.0",
+            "source_file": doc.file_name or None,
+            "summary":     doc.summary or None,
+        },
+        "content": raw_text,
+        "sections": sections_out if sections_out else None,
+        "stats": {
+            "char_count":      char_count,
+            "word_count":      word_count,
+            "paragraph_count": len(paragraphs),
+            "section_count":   len(sections_out),
+        },
+        "trained_at": datetime.utcnow().isoformat(),
+    }
+    return _json.dumps(structured, ensure_ascii=False, indent=2)
+
+
 @router.post("/documents/{doc_id}/train")
 def train_document(
     doc_id: int,
@@ -265,6 +330,9 @@ def train_document(
         raise HTTPException(status_code=404, detail="Document not found")
     if doc.status != models.KnowledgeStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="يجب أن تكون الوثيقة في حالة نشطة للتدريب")
+
+    # Convert raw content → structured clean JSON
+    doc.content = _build_training_json(doc)
     doc.is_trained = True
     doc.trained_at = datetime.utcnow()
     doc.updated_at = datetime.utcnow()

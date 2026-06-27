@@ -617,25 +617,40 @@
       <!-- Editor Area -->
       <div id="content-editor-area">
         <!-- Info Bar -->
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs text-slate-500 font-medium">النص الخام المستخرج من الملف</span>
-          <div class="flex items-center gap-3">
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500 font-medium">بيانات التدريب — JSON</span>
+            <span id="json-status-badge" class="hidden text-xs px-2 py-0.5 rounded-full font-medium"></span>
+          </div>
+          <div class="flex items-center gap-2">
             <span id="content-char-count" class="text-xs text-slate-400"></span>
-            <button onclick="clearContentEditor()" class="text-xs text-red-400 hover:text-red-600 transition-colors flex items-center gap-1">
+            <button onclick="formatJson()" class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors flex items-center gap-1 px-2 py-1 rounded-lg font-medium">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"/></svg>
+              تنسيق
+            </button>
+            <button onclick="clearContentEditor()" class="text-xs bg-red-50 hover:bg-red-100 text-red-500 transition-colors flex items-center gap-1 px-2 py-1 rounded-lg font-medium">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-              مسح الكل
+              مسح
             </button>
           </div>
         </div>
-        <textarea id="content-textarea"
-          class="w-full h-80 p-4 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 font-mono leading-relaxed resize-none"
-          placeholder="اكتب أو الصق المحتوى الخام هنا..."
-          oninput="updateCharCount()"></textarea>
 
-        <!-- Warning Note -->
-        <div class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700">
+        <!-- JSON Error Banner -->
+        <div id="json-error-banner" class="hidden flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700 mb-2">
           <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-          <span>هذا هو النص الذي يعتمد عليه الوكيل في الإجابة. تعديله يؤثر مباشرةً على ردود الوكيل.</span>
+          <span id="json-error-text"></span>
+        </div>
+
+        <!-- Textarea -->
+        <textarea id="content-textarea" dir="ltr"
+          class="w-full h-96 p-4 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 font-mono leading-relaxed resize-y bg-slate-50"
+          placeholder='{\n  "document": { ... },\n  "content": "...",\n  "sections": []\n}'
+          oninput="onJsonInput()" spellcheck="false"></textarea>
+
+        <!-- JSON Schema hint -->
+        <div class="flex items-start gap-2 bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 text-xs text-violet-700">
+          <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>يجب أن يكون المحتوى JSON صالحاً. المفاتيح الأساسية: <code class="bg-violet-100 px-1 rounded">document</code> · <code class="bg-violet-100 px-1 rounded">content</code> · <code class="bg-violet-100 px-1 rounded">sections</code> · <code class="bg-violet-100 px-1 rounded">stats</code></span>
         </div>
       </div>
 
@@ -950,22 +965,33 @@ async function submitEditCategory() {
   }
 }
 
-/* ── Content Modal ───────────────────────────────── */
+/* ── Content / JSON Modal ────────────────────────── */
 async function openContentModal(docId, docTitle) {
   document.getElementById('content_doc_id').value = docId;
   document.getElementById('content-modal-subtitle').textContent = docTitle;
   document.getElementById('content-textarea').value = '';
   document.getElementById('content-char-count').textContent = '';
+  document.getElementById('json-error-banner').classList.add('hidden');
+  document.getElementById('json-status-badge').classList.add('hidden');
   document.getElementById('content-loading').classList.remove('hidden');
+  document.getElementById('content-loading').classList.add('flex');
   document.getElementById('content-editor-area').classList.add('hidden');
   openModal('contentModal');
 
   try {
     const r = await api(`/api/v1/knowledge/documents/${docId}`);
     const doc = await r.json();
-    document.getElementById('content-textarea').value = doc.content || '';
-    updateCharCount();
+    const raw = doc.content || '';
+    // Try to parse + pretty-print if it's already JSON
+    let display = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      display = JSON.stringify(parsed, null, 2);
+    } catch { /* not JSON yet — show raw */ }
+    document.getElementById('content-textarea').value = display;
+    onJsonInput();
     document.getElementById('content-loading').classList.add('hidden');
+    document.getElementById('content-loading').classList.remove('flex');
     document.getElementById('content-editor-area').classList.remove('hidden');
   } catch {
     showToast('تعذر تحميل المحتوى', 'error');
@@ -973,32 +999,84 @@ async function openContentModal(docId, docTitle) {
   }
 }
 
-function updateCharCount() {
-  const len = document.getElementById('content-textarea').value.length;
+function onJsonInput() {
+  const ta = document.getElementById('content-textarea');
+  const val = ta.value.trim();
+  const badge = document.getElementById('json-status-badge');
+  const errBanner = document.getElementById('json-error-banner');
+  const errText = document.getElementById('json-error-text');
+
+  // Char count
   document.getElementById('content-char-count').textContent =
-    len.toLocaleString('ar-EG') + ' حرف';
+    val.length.toLocaleString('ar-EG') + ' حرف';
+
+  if (!val) {
+    badge.classList.add('hidden');
+    errBanner.classList.add('hidden');
+    return;
+  }
+  try {
+    JSON.parse(val);
+    badge.className = 'text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700';
+    badge.textContent = '✓ JSON صالح';
+    badge.classList.remove('hidden');
+    errBanner.classList.add('hidden');
+    ta.classList.remove('border-red-300');
+    ta.classList.add('border-slate-200');
+  } catch (e) {
+    badge.className = 'text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-600';
+    badge.textContent = '✕ خطأ في JSON';
+    badge.classList.remove('hidden');
+    errText.textContent = e.message;
+    errBanner.classList.remove('hidden');
+    ta.classList.add('border-red-300');
+    ta.classList.remove('border-slate-200');
+  }
+}
+
+function formatJson() {
+  const ta = document.getElementById('content-textarea');
+  try {
+    const parsed = JSON.parse(ta.value);
+    ta.value = JSON.stringify(parsed, null, 2);
+    onJsonInput();
+    showToast('تم تنسيق JSON بنجاح', 'success');
+  } catch (e) {
+    showToast('لا يمكن التنسيق — يوجد خطأ في JSON', 'error');
+  }
 }
 
 function clearContentEditor() {
-  if (!confirm('هل تريد مسح كامل النص؟ لا يمكن التراجع عن هذا.')) return;
+  if (!confirm('هل تريد مسح كامل بيانات التدريب؟ لا يمكن التراجع عن هذا.')) return;
   document.getElementById('content-textarea').value = '';
-  updateCharCount();
+  onJsonInput();
 }
 
 async function saveContent() {
   const docId = document.getElementById('content_doc_id').value;
-  const content = document.getElementById('content-textarea').value;
+  const raw = document.getElementById('content-textarea').value.trim();
   const btn = document.getElementById('content-save-btn');
+
+  // Validate JSON before saving
+  if (raw) {
+    try {
+      JSON.parse(raw);
+    } catch (e) {
+      showToast('لا يمكن الحفظ — JSON غير صالح: ' + e.message, 'error');
+      return;
+    }
+  }
+
   btn.disabled = true;
   btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> جاري الحفظ...`;
 
   try {
     const r = await api(`/api/v1/knowledge/documents/${docId}`, {
       method: 'PUT',
-      body: JSON.stringify({ content: content || null })
+      body: JSON.stringify({ content: raw || null })
     });
     if (r.ok) {
-      showToast('تم حفظ المحتوى بنجاح ✓', 'success');
+      showToast('تم حفظ بيانات التدريب بنجاح ✓', 'success');
       closeModal('contentModal');
     } else {
       const err = await r.json();

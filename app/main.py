@@ -198,6 +198,30 @@ def startup():
 
     threading.Thread(target=telegram_auto_sync, daemon=True).start()
 
+    # ── Keep-Alive Ping (prevents Render / free-tier sleep) ───────────────
+    def keep_alive():
+        """Ping own /health every 14 min so free-tier hosts never spin down."""
+        import urllib.request
+        import os as _os
+
+        # Render sets this automatically; fallback to APP_URL env var
+        base_url = (
+            _os.environ.get("RENDER_EXTERNAL_URL") or
+            _os.environ.get("APP_URL") or
+            "http://localhost:5000"
+        )
+        url = base_url.rstrip("/") + "/health"
+        time.sleep(30)          # let server fully start first
+        while True:
+            try:
+                with urllib.request.urlopen(url, timeout=10) as resp:
+                    print(f"[KeepAlive] ✓ ping {url} → {resp.status}")
+            except Exception as e:
+                print(f"[KeepAlive] ✗ ping failed: {e}")
+            time.sleep(14 * 60)     # every 14 minutes
+
+    threading.Thread(target=keep_alive, daemon=True).start()
+
 
 @app.get("/health")
 def health():

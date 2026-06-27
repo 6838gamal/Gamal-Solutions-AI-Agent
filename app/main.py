@@ -8,6 +8,18 @@ from app.api.v1.api import api_router
 from app.api.public.router import router as public_router
 from app.web.router import router as web_router
 import os
+from datetime import datetime
+
+# ── Global server state (for /status page) ───────────────────────────────────
+_SERVER_START = datetime.utcnow()
+_keepalive_state: dict = {
+    "url":        None,
+    "last_ping":  None,
+    "last_status": None,
+    "ping_count": 0,
+    "fail_count": 0,
+    "history":    [],   # last 10 results
+}
 
 
 class NoCacheHTMLMiddleware(BaseHTTPMiddleware):
@@ -226,17 +238,31 @@ def startup():
         """Ping own /health every 7 min so free-tier hosts never spin down."""
         import urllib.request
 
-        time.sleep(20)          # let server fully start first
+        time.sleep(20)
         url = _detect_app_url() + "/health"
+        _keepalive_state["url"] = url
         print(f"[KeepAlive] جاهز — سيُرسَل ping كل 7 دقائق إلى: {url}")
 
         while True:
+            now = datetime.utcnow()
+            entry: dict = {"time": now.isoformat(), "ok": False, "status": None}
             try:
                 with urllib.request.urlopen(url, timeout=15) as resp:
+                    entry["ok"] = True
+                    entry["status"] = resp.status
+                    _keepalive_state["ping_count"] += 1
+                    _keepalive_state["last_ping"] = now.isoformat()
+                    _keepalive_state["last_status"] = resp.status
                     print(f"[KeepAlive] ✓ {resp.status} — {url}")
             except Exception as e:
+                entry["error"] = str(e)
+                _keepalive_state["fail_count"] += 1
                 print(f"[KeepAlive] ✗ فشل الاتصال: {e}")
-            time.sleep(7 * 60)     # every 7 minutes
+            hist = _keepalive_state["history"]
+            hist.append(entry)
+            if len(hist) > 10:
+                hist.pop(0)
+            time.sleep(7 * 60)
 
     threading.Thread(target=keep_alive, daemon=True).start()
 
@@ -244,3 +270,45 @@ def startup():
 @app.get("/health")
 def health():
     return {"status": "ok", "version": settings.VERSION, "project": settings.PROJECT_NAME}
+
+
+@app.get("/status")
+def status_page(request: Request):
+    """Public server status dashboard — no auth required."""
+    from fastapi.responses import HTMLResponse
+    from fastapi.templating import Jinja2Templates
+    import platform
+
+    templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+    tpl = Jinja2Templates(directory=templates_dir)
+
+    now = datetime.utcnow()
+    uptime_secs = int((now - _SERVER_START).total_seconds())
+    hours, rem   = divmod(uptime_secs, 3600)
+    minutes, sec = divmod(rem, 60)
+    uptime_str   = f"{hours}س {minutes}د {sec}ث"
+
+    # Quick DB check
+    db_ok = False
+    try:
+        from app.core.database import engine as _engine
+        from sqlalchemy import text as _text
+        with _engine.connect() as conn:
+            conn.execute(_text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        pass
+
+    context = {
+        "request":      request,
+        "start_time":   _SERVER_START.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "uptime":       uptime_str,
+        "uptime_secs":  uptime_secs,
+        "python":       platform.python_version(),
+        "platform_info": platform.system() + " " + platform.release(),
+        "db_ok":        db_ok,
+        "ka":           _keepalive_state,
+        "version":      settings.VERSION,
+        "project":      settings.PROJECT_NAME,
+    }
+    return tpl.TemplateResponse("status.html", context)

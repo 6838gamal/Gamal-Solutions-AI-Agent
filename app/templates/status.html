@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="refresh" content="30" />
+  <title>حالة السيرفر — {{ project }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Cairo', sans-serif; background: #f1f5f9; }
+    .pulse-dot { animation: pulse 2s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(1.2); }
+    }
+    .bar-ok { background: linear-gradient(90deg, #10b981, #34d399); }
+    .bar-fail { background: linear-gradient(90deg, #ef4444, #f87171); }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+  <!-- Header -->
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-800">🟢 {{ project }}</h1>
+        <p class="text-sm text-slate-500 mt-0.5">لوحة مراقبة حالة السيرفر</p>
+      </div>
+      <div class="text-left text-xs text-slate-400">
+        <div>v{{ version }}</div>
+        <div class="mt-1">يُحدَّث تلقائياً كل 30 ثانية</div>
+      </div>
+    </div>
+
+    <!-- Status Cards Row -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+
+      <!-- Server Status -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-3 h-3 rounded-full bg-emerald-500 pulse-dot"></div>
+          <span class="text-xs text-slate-500 font-medium">السيرفر</span>
+        </div>
+        <div class="text-xl font-bold text-emerald-600">يعمل</div>
+        <div class="text-xs text-slate-400 mt-1">Online</div>
+      </div>
+
+      <!-- Uptime -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span class="text-xs text-slate-500 font-medium">وقت التشغيل</span>
+        </div>
+        <div class="text-lg font-bold text-slate-800 leading-tight">{{ uptime }}</div>
+        <div class="text-xs text-slate-400 mt-1">منذ {{ start_time }}</div>
+      </div>
+
+      <!-- Database -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div class="flex items-center gap-2 mb-2">
+          {% if db_ok %}
+          <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+          {% else %}
+          <div class="w-3 h-3 rounded-full bg-red-500"></div>
+          {% endif %}
+          <span class="text-xs text-slate-500 font-medium">قاعدة البيانات</span>
+        </div>
+        <div class="text-xl font-bold {{ 'text-emerald-600' if db_ok else 'text-red-500' }}">
+          {{ 'متصلة' if db_ok else 'خطأ' }}
+        </div>
+        <div class="text-xs text-slate-400 mt-1">PostgreSQL</div>
+      </div>
+
+      <!-- Keep-Alive -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+          <span class="text-xs text-slate-500 font-medium">Keep-Alive</span>
+        </div>
+        <div class="text-xl font-bold text-violet-600">{{ ka.ping_count }}</div>
+        <div class="text-xs text-slate-400 mt-1">ping ناجح · {{ ka.fail_count }} فشل</div>
+      </div>
+    </div>
+
+    <!-- Keep-Alive Detail -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-6">
+      <h2 class="font-semibold text-slate-700 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Keep-Alive Ping
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div>
+          <div class="text-xs text-slate-400 mb-1">الرابط المستهدف</div>
+          <div class="text-sm font-mono text-blue-600 bg-blue-50 rounded-lg px-3 py-2 break-all">
+            {{ ka.url or '—' }}
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <div class="text-xs text-slate-400">آخر ping</div>
+            <div class="text-sm font-medium text-slate-700 mt-0.5">
+              {% if ka.last_ping %}
+                {{ ka.last_ping.replace('T',' ').split('.')[0] }} UTC
+              {% else %}
+                في انتظار أول ping...
+              {% endif %}
+            </div>
+          </div>
+          <div class="bg-slate-50 rounded-xl px-4 py-3">
+            <div class="text-xs text-slate-400">آخر استجابة</div>
+            <div class="text-sm font-bold mt-0.5 {{ 'text-emerald-600' if ka.last_status == 200 else 'text-amber-500' }}">
+              {{ ka.last_status or '—' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History Bars -->
+      {% if ka.history %}
+      <div>
+        <div class="text-xs text-slate-400 mb-2">آخر {{ ka.history|length }} محاولات</div>
+        <div class="flex items-end gap-1.5" style="height:40px">
+          {% for entry in ka.history %}
+          <div class="flex-1 rounded-sm {{ 'bar-ok' if entry.ok else 'bar-fail' }}"
+               style="height: {{ '100%' if entry.ok else '40%' }}"
+               title="{{ entry.time.split('T')[1].split('.')[0] }} — {{ entry.status if entry.ok else entry.get('error','فشل') }}">
+          </div>
+          {% endfor %}
+        </div>
+        <div class="flex items-center gap-4 mt-2 text-xs text-slate-400">
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-emerald-400 inline-block"></span> ناجح</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-red-400 inline-block"></span> فشل</span>
+          <span class="mr-auto">كل 7 دقائق</span>
+        </div>
+      </div>
+      {% else %}
+      <div class="text-center py-6 text-slate-400 text-sm">
+        جاري الانتظار لأول ping... (يبدأ بعد 20 ثانية من التشغيل)
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- System Info -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-6">
+      <h2 class="font-semibold text-slate-700 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        معلومات النظام
+      </h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+          <div class="text-xs text-slate-400">Python</div>
+          <div class="text-sm font-medium text-slate-700 mt-0.5">{{ python }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">المنصة</div>
+          <div class="text-sm font-medium text-slate-700 mt-0.5">{{ platform_info }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">الإصدار</div>
+          <div class="text-sm font-medium text-slate-700 mt-0.5">v{{ version }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">وقت الفحص</div>
+          <div class="text-sm font-medium text-slate-700 mt-0.5" id="now-time">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-xs text-slate-400 pb-4">
+      <a href="/dashboard" class="text-blue-500 hover:underline">← لوحة التحكم</a>
+      <span class="mx-3">·</span>
+      <a href="/health" class="text-blue-500 hover:underline">JSON /health</a>
+      <span class="mx-3">·</span>
+      تُحدَّث تلقائياً كل 30 ثانية
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('now-time').textContent =
+      new Date().toISOString().replace('T',' ').split('.')[0] + ' UTC';
+  </script>
+</body>
+</html>

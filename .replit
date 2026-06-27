@@ -47,5 +47,5 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["bash", "-c", "cd backend && python3 run.py & cd frontend && npx serve dist -s -l 5000 & wait"]
+run = ["python", "run.py"]
 build = ["bash", "-c", "cd frontend && npm run build"]

@@ -254,90 +254,44 @@ def update_document(
     return doc
 
 
-def _build_training_json(doc) -> str:
-    """Convert a document's raw content into a clean structured JSON for agent training."""
-    import json as _json
-    raw_text = doc.content or ""
-
-    # Split into non-empty paragraphs
-    paragraphs = [p.strip() for p in raw_text.split("\n") if p.strip()]
-
-    # Try to detect simple section headers (short lines ending with : or all-caps)
-    sections = []
-    current_section = {"heading": None, "text": []}
-    for para in paragraphs:
-        is_heading = (
-            len(para) < 80 and (
-                para.endswith(":") or
-                para.endswith("：") or
-                (para.isupper() and len(para.split()) <= 8) or
-                para.startswith("#")
-            )
-        )
-        if is_heading:
-            if current_section["text"]:
-                sections.append(current_section)
-            current_section = {"heading": para.lstrip("#").strip(": ："), "text": []}
-        else:
-            current_section["text"].append(para)
-    if current_section["text"] or current_section["heading"]:
-        sections.append(current_section)
-
-    # Flatten sections into dicts with joined text
-    sections_out = [
-        {
-            "heading": s["heading"],
-            "text": " ".join(s["text"]),
-        }
-        for s in sections
-        if s["text"]
-    ]
-
-    word_count = len(raw_text.split())
-    char_count = len(raw_text)
-
-    structured = {
-        "document": {
-            "title":       doc.title or "",
-            "title_ar":    doc.title_ar or "",
-            "type":        str(doc.doc_type.value) if doc.doc_type else "other",
-            "category":    (doc.category.name_ar or doc.category.name) if doc.category else None,
-            "version":     doc.version or "1.0",
-            "source_file": doc.file_name or None,
-            "summary":     doc.summary or None,
-        },
-        "content": raw_text,
-        "sections": sections_out if sections_out else None,
-        "stats": {
-            "char_count":      char_count,
-            "word_count":      word_count,
-            "paragraph_count": len(paragraphs),
-            "section_count":   len(sections_out),
-        },
-        "trained_at": datetime.utcnow().isoformat(),
-    }
-    return _json.dumps(structured, ensure_ascii=False, indent=2)
-
-
 @router.post("/documents/{doc_id}/train")
 def train_document(
     doc_id: int,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    from app.domains.knowledge.pipeline import build_training_json
     doc = db.query(models.KnowledgeDocument).filter(models.KnowledgeDocument.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     if doc.status != models.KnowledgeStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="يجب أن تكون الوثيقة في حالة نشطة للتدريب")
 
-    # Convert raw content → structured clean JSON
-    doc.content = _build_training_json(doc)
+    # Full RAG pipeline: Clean → Chunk → Knowledge Extraction → Structured JSON
+    doc.content = build_training_json(doc)
     doc.is_trained = True
     doc.trained_at = datetime.utcnow()
     doc.updated_at = datetime.utcnow()
     db.commit()
-    return {"message": "تم تدريب الوكيل على هذه الوثيقة", "doc_id": doc_id}
+
+    import json as _json
+    try:
+        parsed = _json.loads(doc.content)
+        stats = parsed.get("stats", {})
+    except Exception:
+        stats = {}
+
+    return {
+        "message": "تم تدريب الوكيل على هذه الوثيقة",
+        "doc_id": doc_id,
+        "pipeline": {
+            "chunks":   stats.get("chunk_count", 0),
+            "keywords": stats.get("keyword_count", 0),
+            "facts":    stats.get("fact_count", 0),
+            "intent":   _json.loads(doc.content).get("intent") if doc.content else None,
+            "language": _json.loads(doc.content).get("language") if doc.content else None,
+        }
+    }
 
 
 @router.post("/documents/{doc_id}/untrain")
@@ -373,3 +327,92 @@ def delete_document(
     db.delete(doc)
     db.commit()
     return {"message": "تم حذف الوثيقة"}
+
+
+# ─── RAG SEARCH ───────────────────────────────────────────────────────────────
+
+@router.get("/rag/search")
+def rag_search(
+    q: str = Query(..., min_length=2),
+    top_k: int = Query(5, ge=1, le=20),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Hybrid keyword + knowledge search across trained documents."""
+    from app.domains.knowledge.pipeline import rag_search as _rag_search
+    trained_docs = (
+        db.query(models.KnowledgeDocument)
+        .filter(models.KnowledgeDocument.is_trained == True)
+        .all()
+    )
+    results = _rag_search(q, trained_docs, top_k=top_k)
+    return {"query": q, "results": results, "total": len(results)}
+
+
+@router.get("/pipeline/summary")
+def pipeline_summary(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Overview of RAG pipeline processing across all trained documents."""
+    import json as _json
+    trained = (
+        db.query(models.KnowledgeDocument)
+        .filter(models.KnowledgeDocument.is_trained == True)
+        .order_by(models.KnowledgeDocument.trained_at.desc())
+        .all()
+    )
+    docs_info = []
+    total_chunks = 0
+    total_facts = 0
+    total_keywords = 0
+    intents: dict = {}
+    languages: dict = {}
+
+    for doc in trained:
+        info: dict = {
+            "id":         doc.id,
+            "title":      doc.title_ar or doc.title,
+            "type":       str(doc.doc_type.value) if doc.doc_type else "other",
+            "trained_at": doc.trained_at.isoformat() if doc.trained_at else None,
+            "pipeline_v": "1.0",
+            "intent":     None,
+            "language":   None,
+            "chunks":     0,
+            "facts":      0,
+            "keywords":   0,
+            "stages":     [],
+        }
+        if doc.content:
+            try:
+                data = _json.loads(doc.content)
+                stats = data.get("stats", {})
+                info["intent"]    = data.get("intent")
+                info["language"]  = data.get("language")
+                info["chunks"]    = stats.get("chunk_count", 0)
+                info["facts"]     = stats.get("fact_count", 0)
+                info["keywords"]  = stats.get("keyword_count", 0)
+                info["pipeline_v"] = data.get("pipeline", {}).get("version", "1.0")
+                info["stages"]    = data.get("pipeline", {}).get("stages", [])
+                total_chunks   += info["chunks"]
+                total_facts    += info["facts"]
+                total_keywords += info["keywords"]
+                if info["intent"]:
+                    intents[info["intent"]] = intents.get(info["intent"], 0) + 1
+                if info["language"]:
+                    languages[info["language"]] = languages.get(info["language"], 0) + 1
+            except Exception:
+                pass
+        docs_info.append(info)
+
+    return {
+        "overview": {
+            "total_trained":    len(trained),
+            "total_chunks":     total_chunks,
+            "total_facts":      total_facts,
+            "total_keywords":   total_keywords,
+            "intent_breakdown": intents,
+            "language_breakdown": languages,
+        },
+        "documents": docs_info,
+    }

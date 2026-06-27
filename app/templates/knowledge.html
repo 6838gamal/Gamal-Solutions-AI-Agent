@@ -72,20 +72,34 @@
 </div>
 
 <!-- Tab Navigation -->
-<div class="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl w-fit">
+<div class="flex gap-1 mb-5 bg-slate-100 p-1 rounded-xl flex-wrap">
   <button id="tab-docs" onclick="switchTab('docs')"
-    class="px-5 py-2 rounded-lg text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
+    class="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-white text-blue-600 shadow-sm">
     الوثائق
   </button>
   <button id="tab-training" onclick="switchTab('training')"
-    class="px-5 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
+    class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
     <span class="flex items-center gap-1.5">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
       استعراض التدريب
     </span>
   </button>
+  <button id="tab-pipeline" onclick="switchTab('pipeline')"
+    class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
+    <span class="flex items-center gap-1.5">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      خط المعالجة
+    </span>
+  </button>
+  <button id="tab-rag" onclick="switchTab('rag')"
+    class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
+    <span class="flex items-center gap-1.5">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      البحث الذكي RAG
+    </span>
+  </button>
   <button id="tab-cats" onclick="switchTab('cats')"
-    class="px-5 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
+    class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
     الفئات
   </button>
 </div>
@@ -308,6 +322,96 @@
   </div>
   {% endif %}
 </div>
+
+<!-- ═══ PIPELINE MONITOR PANE ═══ -->
+<div id="pane-pipeline" class="hidden">
+
+  <!-- Overview Stats -->
+  <div id="pipeline-overview" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+      <div id="po-chunks" class="text-2xl font-bold text-blue-600">—</div>
+      <div class="text-xs text-slate-500 mt-1">مقاطع دلالية</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+      <div id="po-facts" class="text-2xl font-bold text-emerald-600">—</div>
+      <div class="text-xs text-slate-500 mt-1">حقائق مستخرجة</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+      <div id="po-keywords" class="text-2xl font-bold text-violet-600">—</div>
+      <div class="text-xs text-slate-500 mt-1">كلمات مفتاحية</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+      <div id="po-docs" class="text-2xl font-bold text-amber-600">—</div>
+      <div class="text-xs text-slate-500 mt-1">وثائق مُعالَجة</div>
+    </div>
+  </div>
+
+  <!-- Pipeline Stages Legend -->
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+    <h4 class="text-sm font-semibold text-slate-700 mb-4">مراحل خط معالجة RAG</h4>
+    <div class="flex flex-wrap gap-2">
+      {% for stage, label, color in [
+        ('text_cleaning','تنظيف النص','bg-blue-100 text-blue-700'),
+        ('language_detection','كشف اللغة','bg-sky-100 text-sky-700'),
+        ('section_detection','تحديد الأقسام','bg-indigo-100 text-indigo-700'),
+        ('semantic_chunking','التقطيع الدلالي','bg-violet-100 text-violet-700'),
+        ('keyword_extraction','الكلمات المفتاحية','bg-purple-100 text-purple-700'),
+        ('entity_extraction','استخراج الكيانات','bg-fuchsia-100 text-fuchsia-700'),
+        ('fact_extraction','استخراج الحقائق','bg-pink-100 text-pink-700'),
+        ('intent_classification','تصنيف النية','bg-rose-100 text-rose-700'),
+      ] %}
+      <span class="text-xs px-3 py-1.5 rounded-full font-medium {{ color }} flex items-center gap-1.5">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+        {{ label }}
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Per-Document Pipeline Results -->
+  <div id="pipeline-docs-list" class="space-y-3">
+    <div class="flex items-center justify-center py-16 text-slate-400 gap-2">
+      <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+      <span class="text-sm">جاري تحميل بيانات خط المعالجة...</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══ RAG SEARCH PANE ═══ -->
+<div id="pane-rag" class="hidden">
+
+  <!-- Search Box -->
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 mb-5">
+    <h3 class="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+      <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      البحث الذكي في قاعدة المعرفة
+    </h3>
+    <p class="text-xs text-slate-400 mb-4">يبحث في الحقائق المستخرجة، الكلمات المفتاحية، والمقاطع الدلالية لجميع الوثائق المدرَّبة.</p>
+    <div class="flex gap-2">
+      <div class="relative flex-1">
+        <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="rag-query" type="text" placeholder="ابحث في قاعدة المعرفة..."
+          class="w-full pr-10 pl-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
+          onkeydown="if(event.key==='Enter') runRagSearch()" />
+      </div>
+      <button onclick="runRagSearch()" class="btn-primary px-5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        بحث
+      </button>
+    </div>
+  </div>
+
+  <!-- RAG Results -->
+  <div id="rag-results-area">
+    <div class="flex flex-col items-center justify-center py-20 text-slate-400">
+      <svg class="w-14 h-14 mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <p class="font-medium text-slate-500 mb-1">ابدأ البحث الذكي</p>
+      <p class="text-sm">اكتب استفساراً لاسترجاع المعرفة ذات الصلة من الوثائق المدرَّبة</p>
+    </div>
+  </div>
+</div>
+
 
 <!-- ═══ CATEGORIES PANE ═══ -->
 <div id="pane-cats" class="hidden">
@@ -708,14 +812,27 @@ function showToast(msg, type='success') {
 
 /* ── Tab Switching ───────────────────────────────── */
 function switchTab(tab) {
-  const panes = { docs: 'pane-docs', training: 'pane-training', cats: 'pane-cats' };
-  const tabs  = { docs: 'tab-docs',  training: 'tab-training',  cats: 'tab-cats'  };
-  const active   = 'px-5 py-2 rounded-lg text-sm font-medium transition-all bg-white text-blue-600 shadow-sm';
-  const inactive = 'px-5 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700';
+  const panes = {
+    docs:     'pane-docs',
+    training: 'pane-training',
+    pipeline: 'pane-pipeline',
+    rag:      'pane-rag',
+    cats:     'pane-cats',
+  };
+  const tabs = {
+    docs:     'tab-docs',
+    training: 'tab-training',
+    pipeline: 'tab-pipeline',
+    rag:      'tab-rag',
+    cats:     'tab-cats',
+  };
+  const active   = 'px-4 py-2 rounded-lg text-sm font-medium transition-all bg-white text-blue-600 shadow-sm';
+  const inactive = 'px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700';
   Object.keys(panes).forEach(key => {
     document.getElementById(panes[key]).classList.toggle('hidden', key !== tab);
     document.getElementById(tabs[key]).className = key === tab ? active : inactive;
   });
+  if (tab === 'pipeline') loadPipelineSummary();
 }
 
 /* ── Filter ──────────────────────────────────────── */
@@ -1057,7 +1174,6 @@ async function saveContent() {
   const raw = document.getElementById('content-textarea').value.trim();
   const btn = document.getElementById('content-save-btn');
 
-  // Validate JSON before saving
   if (raw) {
     try {
       JSON.parse(raw);
@@ -1087,6 +1203,180 @@ async function saveContent() {
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> حفظ التعديلات`;
+  }
+}
+
+
+/* ── Pipeline Monitor ────────────────────────────── */
+const INTENT_LABELS = {
+  informational: { label: 'معلوماتي',  color: 'bg-blue-100 text-blue-700' },
+  procedural:    { label: 'إجرائي',    color: 'bg-violet-100 text-violet-700' },
+  policy:        { label: 'سياسة',     color: 'bg-amber-100 text-amber-700' },
+  faq:           { label: 'أسئلة شائعة', color: 'bg-sky-100 text-sky-700' },
+  reference:     { label: 'مرجعي',     color: 'bg-teal-100 text-teal-700' },
+  contract:      { label: 'عقد',       color: 'bg-rose-100 text-rose-700' },
+};
+const LANG_LABELS = { ar: 'عربي 🇸🇦', en: 'English 🇬🇧', mixed: 'مختلط' };
+const PIPELINE_STAGES_AR = {
+  text_cleaning:          'تنظيف النص',
+  language_detection:     'كشف اللغة',
+  section_detection:      'تحديد الأقسام',
+  semantic_chunking:      'التقطيع الدلالي',
+  keyword_extraction:     'الكلمات المفتاحية',
+  entity_extraction:      'استخراج الكيانات',
+  fact_extraction:        'استخراج الحقائق',
+  intent_classification:  'تصنيف النية',
+};
+
+async function loadPipelineSummary() {
+  const list = document.getElementById('pipeline-docs-list');
+  try {
+    const r = await api('/api/v1/knowledge/pipeline/summary');
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    const ov = data.overview;
+
+    document.getElementById('po-chunks').textContent   = (ov.total_chunks || 0).toLocaleString('ar-EG');
+    document.getElementById('po-facts').textContent    = (ov.total_facts || 0).toLocaleString('ar-EG');
+    document.getElementById('po-keywords').textContent = (ov.total_keywords || 0).toLocaleString('ar-EG');
+    document.getElementById('po-docs').textContent     = (ov.total_trained || 0).toLocaleString('ar-EG');
+
+    if (!data.documents || data.documents.length === 0) {
+      list.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-20 text-slate-400">
+          <svg class="w-14 h-14 mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <p class="font-medium text-slate-500 mb-1">لا توجد وثائق مُعالَجة بعد</p>
+          <p class="text-sm">ارفع وثيقة وادفع "تدريب الوكيل" لتشغيل خط المعالجة</p>
+        </div>`;
+      return;
+    }
+
+    list.innerHTML = data.documents.map(doc => {
+      const intent = INTENT_LABELS[doc.intent] || { label: doc.intent || '—', color: 'bg-slate-100 text-slate-600' };
+      const lang   = LANG_LABELS[doc.language] || doc.language || '—';
+      const pv     = doc.pipeline_v === '2.0'
+        ? '<span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">Pipeline v2</span>'
+        : '<span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">Pipeline v1</span>';
+      const stagesHtml = (doc.stages || []).map(s =>
+        `<span class="text-xs bg-slate-50 border border-slate-200 text-slate-500 px-2 py-0.5 rounded-lg">${PIPELINE_STAGES_AR[s] || s}</span>`
+      ).join('');
+
+      return `
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div class="flex items-start justify-between gap-3 mb-4">
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-slate-800 text-sm mb-1">${doc.title}</div>
+            <div class="flex items-center gap-2 flex-wrap">
+              ${pv}
+              <span class="text-xs ${intent.color} px-2 py-0.5 rounded-full font-medium">${intent.label}</span>
+              <span class="text-xs text-slate-400">${lang}</span>
+              <span class="text-xs text-slate-400">${doc.trained_at ? new Date(doc.trained_at).toLocaleDateString('ar-SA') : '—'}</span>
+            </div>
+          </div>
+          <button onclick="openContentModal(${doc.id}, '${doc.title.replace(/'/g, "\\'")}')"
+            class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 flex-shrink-0 transition-colors">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            عرض JSON
+          </button>
+        </div>
+        <div class="grid grid-cols-3 gap-3 mb-4">
+          <div class="bg-blue-50 rounded-xl px-3 py-2 text-center">
+            <div class="text-lg font-bold text-blue-600">${(doc.chunks || 0).toLocaleString('ar-EG')}</div>
+            <div class="text-xs text-blue-500">مقاطع</div>
+          </div>
+          <div class="bg-emerald-50 rounded-xl px-3 py-2 text-center">
+            <div class="text-lg font-bold text-emerald-600">${(doc.facts || 0).toLocaleString('ar-EG')}</div>
+            <div class="text-xs text-emerald-500">حقائق</div>
+          </div>
+          <div class="bg-violet-50 rounded-xl px-3 py-2 text-center">
+            <div class="text-lg font-bold text-violet-600">${(doc.keywords || 0).toLocaleString('ar-EG')}</div>
+            <div class="text-xs text-violet-500">كلمات مفتاحية</div>
+          </div>
+        </div>
+        ${stagesHtml ? `<div class="flex flex-wrap gap-1.5">${stagesHtml}</div>` : ''}
+      </div>`;
+    }).join('');
+
+  } catch {
+    list.innerHTML = `<div class="text-center py-8 text-red-400 text-sm">تعذر تحميل بيانات خط المعالجة</div>`;
+  }
+}
+
+
+/* ── RAG Search ──────────────────────────────────── */
+const MATCHED_TYPE_LABEL = {
+  title: 'تطابق في العنوان',
+  fact:  'تطابق في الحقائق',
+  chunk: 'تطابق في المقاطع',
+  text:  'تطابق في النص',
+};
+
+async function runRagSearch() {
+  const query = document.getElementById('rag-query').value.trim();
+  if (!query || query.length < 2) {
+    showToast('اكتب كلمة بحث على الأقل', 'error');
+    return;
+  }
+  const area = document.getElementById('rag-results-area');
+  area.innerHTML = `
+    <div class="flex items-center justify-center py-16 text-slate-400 gap-2">
+      <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+      <span class="text-sm">جاري البحث...</span>
+    </div>`;
+
+  try {
+    const r = await api(`/api/v1/knowledge/rag/search?q=${encodeURIComponent(query)}&top_k=8`);
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+
+    if (!data.results || data.results.length === 0) {
+      area.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-16 text-slate-400">
+          <svg class="w-12 h-12 mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <p class="font-medium text-slate-500 mb-1">لا توجد نتائج</p>
+          <p class="text-sm">جرب كلمات أخرى أو تأكد من أن الوثائق مدرَّبة</p>
+        </div>`;
+      return;
+    }
+
+    const maxScore = data.results[0].score || 1;
+    area.innerHTML = `
+      <div class="text-xs text-slate-400 mb-3 px-1">
+        وجدنا <strong class="text-slate-600">${data.results.length}</strong> نتيجة لـ "<strong class="text-blue-600">${query}</strong>"
+      </div>
+      <div class="space-y-3">
+        ${data.results.map((res, idx) => {
+          const relevance = Math.round((res.score / maxScore) * 100);
+          const intent = INTENT_LABELS[res.intent] || { label: res.intent || '—', color: 'bg-slate-100 text-slate-600' };
+          const matchLabel = MATCHED_TYPE_LABEL[res.matched_type] || res.matched_type;
+          return `
+          <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-xs font-bold text-slate-400">#${idx + 1}</span>
+                  <h4 class="font-semibold text-slate-800 text-sm">${res.title}</h4>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs ${intent.color} px-2 py-0.5 rounded-full font-medium">${intent.label}</span>
+                  <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">${matchLabel}</span>
+                  <span class="text-xs text-slate-400">${res.chunk_count || 0} مقطع · ${res.fact_count || 0} حقيقة</span>
+                </div>
+              </div>
+              <div class="flex-shrink-0 text-center">
+                <div class="text-lg font-bold ${relevance >= 70 ? 'text-emerald-600' : relevance >= 40 ? 'text-amber-600' : 'text-slate-400'}">${relevance}%</div>
+                <div class="text-xs text-slate-400">صلة</div>
+              </div>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-1.5 mb-3">
+              <div class="h-1.5 rounded-full ${relevance >= 70 ? 'bg-emerald-500' : relevance >= 40 ? 'bg-amber-400' : 'bg-slate-300'}" style="width:${relevance}%"></div>
+            </div>
+            ${res.excerpt ? `<p class="text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-xl p-3 border-r-2 border-blue-300">${res.excerpt}</p>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+  } catch {
+    area.innerHTML = `<div class="text-center py-8 text-red-400 text-sm">تعذر تنفيذ البحث — تحقق من الاتصال</div>`;
   }
 }
 </script>

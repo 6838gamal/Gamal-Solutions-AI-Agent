@@ -199,26 +199,44 @@ def startup():
     threading.Thread(target=telegram_auto_sync, daemon=True).start()
 
     # ── Keep-Alive Ping (prevents Render / free-tier sleep) ───────────────
-    def keep_alive():
-        """Ping own /health every 14 min so free-tier hosts never spin down."""
-        import urllib.request
+    def _detect_app_url() -> str:
+        """Auto-detect the public app URL from common hosting platforms."""
         import os as _os
+        import socket
 
-        # Render sets this automatically; fallback to APP_URL env var
-        base_url = (
-            _os.environ.get("RENDER_EXTERNAL_URL") or
-            _os.environ.get("APP_URL") or
-            "http://localhost:5000"
-        )
-        url = base_url.rstrip("/") + "/health"
-        time.sleep(30)          # let server fully start first
+        candidates = [
+            _os.environ.get("RENDER_EXTERNAL_URL"),        # Render (auto)
+            _os.environ.get("REPLIT_DEV_DOMAIN") and
+                f"https://{_os.environ['REPLIT_DEV_DOMAIN']}",  # Replit (auto)
+            _os.environ.get("RAILWAY_PUBLIC_DOMAIN") and
+                f"https://{_os.environ['RAILWAY_PUBLIC_DOMAIN']}",  # Railway (auto)
+            _os.environ.get("FLY_APP_NAME") and
+                f"https://{_os.environ['FLY_APP_NAME']}.fly.dev",  # Fly.io (auto)
+            _os.environ.get("APP_URL"),                    # manual override
+        ]
+
+        for url in candidates:
+            if url:
+                return url.rstrip("/")
+
+        # Last resort: local
+        return "http://localhost:5000"
+
+    def keep_alive():
+        """Ping own /health every 7 min so free-tier hosts never spin down."""
+        import urllib.request
+
+        time.sleep(20)          # let server fully start first
+        url = _detect_app_url() + "/health"
+        print(f"[KeepAlive] جاهز — سيُرسَل ping كل 7 دقائق إلى: {url}")
+
         while True:
             try:
-                with urllib.request.urlopen(url, timeout=10) as resp:
-                    print(f"[KeepAlive] ✓ ping {url} → {resp.status}")
+                with urllib.request.urlopen(url, timeout=15) as resp:
+                    print(f"[KeepAlive] ✓ {resp.status} — {url}")
             except Exception as e:
-                print(f"[KeepAlive] ✗ ping failed: {e}")
-            time.sleep(14 * 60)     # every 14 minutes
+                print(f"[KeepAlive] ✗ فشل الاتصال: {e}")
+            time.sleep(7 * 60)     # every 7 minutes
 
     threading.Thread(target=keep_alive, daemon=True).start()
 

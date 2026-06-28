@@ -19,7 +19,23 @@ _keepalive_state: dict = {
     "ping_count": 0,
     "fail_count": 0,
     "history":    [],   # last 10 results
+    "db_ok":      None, # None = not checked yet
+    "last_fail_notified": 0,  # fail_count snapshot for change detection
 }
+
+
+def _calc_next_ping_in() -> int:
+    """Seconds until the next server-side keepalive ping."""
+    INTERVAL = 7 * 60
+    now = datetime.utcnow()
+    uptime = int((now - _SERVER_START).total_seconds())
+    if _keepalive_state["last_ping"]:
+        try:
+            elapsed = int((now - datetime.fromisoformat(_keepalive_state["last_ping"])).total_seconds())
+            return max(0, INTERVAL - elapsed)
+        except Exception:
+            return INTERVAL
+    return max(0, INTERVAL - ((uptime - 20) % INTERVAL)) if uptime > 20 else max(0, 20 - uptime)
 
 
 class NoCacheHTMLMiddleware(BaseHTTPMiddleware):
@@ -350,7 +366,9 @@ def startup():
         return "http://localhost:5000"
 
     def keep_alive():
-        """Ping own /health every 7 min so free-tier hosts never spin down."""
+        """Ping own /health every 7 min so free-tier hosts never spin down.
+        Also checks DB connectivity on each cycle and updates _keepalive_state['db_ok'].
+        """
         import urllib.request
 
         time.sleep(20)
@@ -361,6 +379,8 @@ def startup():
         while True:
             now = datetime.utcnow()
             entry: dict = {"time": now.isoformat(), "ok": False, "status": None}
+
+            # ── HTTP ping ─────────────────────────────────────────────
             try:
                 with urllib.request.urlopen(url, timeout=15) as resp:
                     entry["ok"] = True
@@ -368,11 +388,23 @@ def startup():
                     _keepalive_state["ping_count"] += 1
                     _keepalive_state["last_ping"] = now.isoformat()
                     _keepalive_state["last_status"] = resp.status
-                    print(f"[KeepAlive] ✓ {resp.status} — {url}")
+                    print(f"[KeepAlive] ✓ HTTP {resp.status} — {url}")
             except Exception as e:
                 entry["error"] = str(e)
                 _keepalive_state["fail_count"] += 1
-                print(f"[KeepAlive] ✗ فشل الاتصال: {e}")
+                print(f"[KeepAlive] ✗ HTTP فشل: {e}")
+
+            # ── DB ping ───────────────────────────────────────────────
+            try:
+                from app.core.database import engine as _engine
+                from sqlalchemy import text as _stext
+                with _engine.connect() as _conn:
+                    _conn.execute(_stext("SELECT 1"))
+                _keepalive_state["db_ok"] = True
+            except Exception as _dbe:
+                _keepalive_state["db_ok"] = False
+                print(f"[KeepAlive] ✗ DB فشل: {_dbe}")
+
             hist = _keepalive_state["history"]
             hist.append(entry)
             if len(hist) > 10:
@@ -389,44 +421,134 @@ def health():
 
 @app.get("/api/v1/system/keepalive-status")
 def keepalive_status():
-    """
-    Returns the current keepalive state + seconds until the next server-side ping.
-    Used by the dashboard countdown widget (no auth required — read-only metrics).
-    """
-    import math
+    """Current keepalive state + seconds until next ping. No auth — read-only metrics."""
     now = datetime.utcnow()
     uptime_secs = int((now - _SERVER_START).total_seconds())
-
-    # Calculate seconds until next server-side ping
-    INTERVAL = 7 * 60  # 420 seconds
-    if _keepalive_state["last_ping"]:
-        try:
-            last_dt = datetime.fromisoformat(_keepalive_state["last_ping"])
-            elapsed = int((now - last_dt).total_seconds())
-            next_in = max(0, INTERVAL - elapsed)
-        except Exception:
-            next_in = INTERVAL
-    else:
-        # Not pinged yet — estimate from uptime (first ping fires after 20s)
-        next_in = max(0, INTERVAL - ((uptime_secs - 20) % INTERVAL)) if uptime_secs > 20 else max(0, 20 - uptime_secs)
-
     hours, rem   = divmod(uptime_secs, 3600)
     minutes, sec = divmod(rem, 60)
-
     return {
-        "server_ok":      True,
-        "uptime":         f"{hours}س {minutes}د {sec}ث",
-        "uptime_secs":    uptime_secs,
-        "ping_count":     _keepalive_state["ping_count"],
-        "fail_count":     _keepalive_state["fail_count"],
-        "last_ping":      _keepalive_state["last_ping"],
-        "last_status":    _keepalive_state["last_status"],
-        "next_ping_in":   next_in,          # seconds
-        "interval":       INTERVAL,
-        "history":        _keepalive_state["history"][-5:],
-        "url":            _keepalive_state["url"],
-        "timestamp":      now.isoformat(),
+        "server_ok":    True,
+        "uptime":       f"{hours}س {minutes}د {sec}ث",
+        "uptime_secs":  uptime_secs,
+        "ping_count":   _keepalive_state["ping_count"],
+        "fail_count":   _keepalive_state["fail_count"],
+        "last_ping":    _keepalive_state["last_ping"],
+        "last_status":  _keepalive_state["last_status"],
+        "db_ok":        _keepalive_state["db_ok"],
+        "next_ping_in": _calc_next_ping_in(),
+        "interval":     420,
+        "history":      _keepalive_state["history"][-5:],
+        "url":          _keepalive_state["url"],
+        "timestamp":    now.isoformat(),
     }
+
+
+@app.get("/api/v1/system/events")
+async def system_events(request: Request):
+    """
+    Server-Sent Events stream — pushes real-time health updates to the dashboard.
+
+    Event types:
+      heartbeat  — every 15 s, keeps the connection alive
+      status     — every 30 s, full state snapshot (used to refresh the widget)
+      alert      — immediately when a ping fails OR DB goes down
+      recover    — immediately when ping succeeds after failures / DB recovers
+    """
+    import asyncio, json as _json
+
+    async def _generator():
+        import asyncio
+        prev_fail  = _keepalive_state["fail_count"]
+        prev_ping  = _keepalive_state["ping_count"]
+        prev_db_ok = _keepalive_state["db_ok"]
+        tick = 0                    # increments every 15 s
+
+        while True:
+            if await request.is_disconnected():
+                break
+
+            now         = datetime.utcnow()
+            uptime_secs = int((now - _SERVER_START).total_seconds())
+            hours, rem  = divmod(uptime_secs, 3600)
+            mins, secs  = divmod(rem, 60)
+
+            cur_fail   = _keepalive_state["fail_count"]
+            cur_ping   = _keepalive_state["ping_count"]
+            cur_db_ok  = _keepalive_state["db_ok"]
+
+            # ── Determine event type ────────────────────────────────
+            event_type = "heartbeat"
+            data: dict = {}
+
+            # New failure?
+            if cur_fail > prev_fail:
+                event_type = "alert"
+                data = {
+                    "kind":       "ping_failed",
+                    "message":    "⚠️ فشل اتصال التنشيط — قد يكون السيرفر في خطر",
+                    "fail_count": cur_fail,
+                    "timestamp":  now.isoformat(),
+                }
+                prev_fail = cur_fail
+
+            # DB just went down?
+            elif prev_db_ok is True and cur_db_ok is False:
+                event_type = "alert"
+                data = {
+                    "kind":      "db_down",
+                    "message":   "🔴 قاعدة البيانات غير متاحة",
+                    "timestamp": now.isoformat(),
+                }
+
+            # Recovery: new successful ping after failures
+            elif cur_ping > prev_ping and prev_fail > 0:
+                event_type = "recover"
+                data = {
+                    "kind":       "ping_ok",
+                    "message":    "✅ عاد الاتصال بنجاح",
+                    "ping_count": cur_ping,
+                    "timestamp":  now.isoformat(),
+                }
+                prev_ping = cur_ping
+
+            # DB recovered?
+            elif prev_db_ok is False and cur_db_ok is True:
+                event_type = "recover"
+                data = {
+                    "kind":      "db_up",
+                    "message":   "✅ قاعدة البيانات عادت للعمل",
+                    "timestamp": now.isoformat(),
+                }
+
+            # Every 30 s (2 ticks): full status snapshot
+            elif tick % 2 == 0:
+                event_type = "status"
+                data = {
+                    "ping_count":   cur_ping,
+                    "fail_count":   cur_fail,
+                    "db_ok":        cur_db_ok,
+                    "last_ping":    _keepalive_state["last_ping"],
+                    "last_status":  _keepalive_state["last_status"],
+                    "next_ping_in": _calc_next_ping_in(),
+                    "uptime":       f"{hours}س {mins}د {secs}ث",
+                    "history":      _keepalive_state["history"][-5:],
+                }
+                prev_ping = cur_ping
+                prev_db_ok = cur_db_ok
+
+            yield f"event: {event_type}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+            tick += 1
+            await asyncio.sleep(15)
+
+    return __import__("fastapi").responses.StreamingResponse(
+        _generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection":       "keep-alive",
+        },
+    )
 
 
 @app.get("/status")

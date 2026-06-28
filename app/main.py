@@ -76,6 +76,38 @@ app.include_router(web_router)
 @app.on_event("startup")
 def startup():
     import threading
+    # ── Run critical column-addition migrations SYNCHRONOUSLY ─────────────
+    # Must complete before any request is served, because SQLAlchemy ORM
+    # maps ALL model columns at query time (even on simple COUNT queries).
+    try:
+        from sqlalchemy import text as _text
+        _critical = [
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS file_path VARCHAR(500)",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS file_name VARCHAR(255)",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS file_size INTEGER DEFAULT 0",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS is_trained BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS trained_at TIMESTAMP",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS retrieval_count INTEGER DEFAULT 0",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS last_retrieved_at TIMESTAMP",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS domain VARCHAR(50) DEFAULT 'general'",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS visibility VARCHAR(30) DEFAULT 'global'",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS allowed_agent_types JSONB DEFAULT '[]'",
+            "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS importance_score FLOAT DEFAULT 1.0",
+            "ALTER TABLE agents ADD COLUMN IF NOT EXISTS domain VARCHAR(50)",
+            "ALTER TABLE agents ADD COLUMN IF NOT EXISTS knowledge_domains JSONB DEFAULT '[]'",
+            "ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_priority INTEGER DEFAULT 5",
+            "ALTER TABLE agents ADD COLUMN IF NOT EXISTS max_context_docs INTEGER DEFAULT 5",
+        ]
+        with engine.connect() as _conn:
+            for _sql in _critical:
+                try:
+                    _conn.execute(_text(_sql))
+                except Exception:
+                    pass
+            _conn.commit()
+    except Exception as _e:
+        print(f"[Startup] Critical migration warning: {_e}")
+
     def init_db():
         try:
             Base.metadata.create_all(bind=engine)
@@ -173,6 +205,60 @@ def startup():
                 # RAG v3.0 — retrieval analytics on documents
                 "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS retrieval_count INTEGER DEFAULT 0",
                 "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS last_retrieved_at TIMESTAMP",
+                # Knowledge Domain Architecture
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS domain VARCHAR(50) DEFAULT 'general'",
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS visibility VARCHAR(30) DEFAULT 'global'",
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS allowed_agent_types JSONB DEFAULT '[]'",
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS importance_score FLOAT DEFAULT 1.0",
+                # Agent Orchestration fields
+                "ALTER TABLE agents ADD COLUMN IF NOT EXISTS domain VARCHAR(50)",
+                "ALTER TABLE agents ADD COLUMN IF NOT EXISTS knowledge_domains JSONB DEFAULT '[]'",
+                "ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_priority INTEGER DEFAULT 5",
+                "ALTER TABLE agents ADD COLUMN IF NOT EXISTS max_context_docs INTEGER DEFAULT 5",
+                # Orchestration — routing logs
+                """CREATE TABLE IF NOT EXISTS agent_routing_logs (
+                    id SERIAL PRIMARY KEY,
+                    query TEXT NOT NULL,
+                    primary_domain VARCHAR(50),
+                    secondary_domains JSONB DEFAULT '[]',
+                    routed_agent_id INTEGER REFERENCES agents(id),
+                    routing_confidence FLOAT DEFAULT 0.0,
+                    domain_scores JSONB DEFAULT '{}',
+                    matched_signals JSONB DEFAULT '[]',
+                    retrieval_confidence VARCHAR(10),
+                    results_count INTEGER DEFAULT 0,
+                    session_id VARCHAR(100),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )""",
+                # Orchestration — knowledge gaps (continuous learning)
+                """CREATE TABLE IF NOT EXISTS knowledge_gaps (
+                    id SERIAL PRIMARY KEY,
+                    query TEXT NOT NULL,
+                    attempted_domain VARCHAR(50),
+                    retrieval_confidence VARCHAR(10),
+                    top_score FLOAT DEFAULT 0.0,
+                    suggested_domain VARCHAR(50),
+                    suggested_action TEXT,
+                    is_resolved BOOLEAN DEFAULT FALSE,
+                    resolved_by INTEGER REFERENCES users(id),
+                    resolved_at TIMESTAMP,
+                    occurrence_count INTEGER DEFAULT 1,
+                    last_asked_at TIMESTAMP DEFAULT NOW(),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )""",
+                # Orchestration — agent handoffs
+                """CREATE TABLE IF NOT EXISTS agent_handoffs (
+                    id SERIAL PRIMARY KEY,
+                    query TEXT NOT NULL,
+                    from_agent_id INTEGER REFERENCES agents(id),
+                    to_agent_id INTEGER REFERENCES agents(id),
+                    reason TEXT,
+                    context JSONB DEFAULT '{}',
+                    status VARCHAR(30) DEFAULT 'pending',
+                    result TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    completed_at TIMESTAMP
+                )""",
                 # API Keys table
                 """CREATE TABLE IF NOT EXISTS api_keys (
                     id SERIAL PRIMARY KEY,

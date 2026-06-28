@@ -1,0 +1,246 @@
+# Enterprise Multi-Agent Knowledge Platform Refactoring Prompt
+
+أنت مهندس معماري خبير في أنظمة الذكاء الاصطناعي المؤسسية (Enterprise AI Architect) ومتخصص في:
+
+* Multi-Agent Systems
+* RAG Architectures
+* Knowledge Engineering
+* AI Orchestration
+* Agent Communication
+* Scalable AI Platforms
+
+أريد منك العمل كمستشار تقني ومهندس معماري لإعادة تصميم منصتي الحالية وتحويلها إلى منصة وكلاء ذكاء اصطناعي مؤسسية قابلة للتوسع.
+
+## الوضع الحالي
+
+لدي نظام يعتمد على:
+
+* ملفات PDF
+* مقالات
+* مستندات نصية
+* قواعد معرفة
+* RAG
+
+ويهدف إلى الإجابة على أسئلة المستخدمين.
+
+لكنني أريد تطويره ليصبح منصة متعددة الوكلاء (Multi-Agent Platform) بدلاً من وكيل واحد.
+
+---
+
+## الرؤية المستقبلية
+
+أريد وجود عدة وكلاء مستقلين وظيفياً مثل:
+
+### Customer Support Agent
+
+مسؤول عن:
+
+* الرد على العملاء
+* الدعم الفني
+* الأسئلة الشائعة
+* معالجة الشكاوى
+
+### Sales Agent
+
+مسؤول عن:
+
+* إغلاق المبيعات
+* معالجة الاعتراضات
+* اقتراح الحلول
+* متابعة العملاء المحتملين
+
+### Market Intelligence Agent
+
+مسؤول عن:
+
+* تحليل السوق
+* تحليل المنافسين
+* اكتشاف الفرص
+* تحليل الاتجاهات
+
+### Future Agents
+
+يجب أن يسمح التصميم بإضافة وكلاء جدد مستقبلاً مثل:
+
+* HR Agent
+* Finance Agent
+* Operations Agent
+* Executive Assistant Agent
+* Project Management Agent
+
+بدون الحاجة لإعادة بناء النظام.
+
+---
+
+## المتطلبات المعمارية
+
+### 1. Global Knowledge Hub
+
+أريد تصميم قاعدة معرفة مركزية موحدة تحتوي على جميع المعارف والوثائق والحقائق الخاصة بالمؤسسة.
+
+ويجب أن تكون المصدر الرئيسي للمعرفة.
+
+---
+
+### 2. Domain Knowledge Layers
+
+أريد تقسيم المعرفة إلى نطاقات تخصصية مثل:
+
+* Customer Support Knowledge
+* Sales Knowledge
+* Marketing Knowledge
+* Market Intelligence Knowledge
+* Product Knowledge
+* Internal Operations Knowledge
+
+مع إمكانية مشاركة المعرفة بين النطاقات.
+
+---
+
+### 3. Knowledge Routing Layer
+
+أريد طبقة ذكية تقوم بـ:
+
+* فهم السؤال
+* تحديد الوكيل المناسب
+* تحديد قواعد المعرفة المطلوبة
+* تحديد ما إذا كان السؤال يحتاج أكثر من وكيل
+
+مع شرح آلية العمل بالتفصيل.
+
+---
+
+### 4. Agent Orchestration Layer
+
+أريد تصميم طبقة تنسيق بين الوكلاء تشمل:
+
+* Agent-to-Agent Communication
+* Shared Context Management
+* Task Delegation
+* Result Aggregation
+* Workflow Execution
+
+---
+
+### 5. Knowledge Ingestion Pipeline
+
+صمم Pipeline متكامل يبدأ من:
+
+Files
+↓
+Extraction
+↓
+Cleaning
+↓
+Knowledge Extraction
+↓
+Knowledge Units
+↓
+Metadata Generation
+↓
+Keyword Generation
+↓
+Synthetic Question Generation
+↓
+Embedding
+↓
+Indexing
+↓
+Knowledge Hub
+
+مع شرح كل مرحلة.
+
+---
+
+### 6. Knowledge Unit Schema
+
+صمم نموذج بيانات مثالي لكل وحدة معرفة.
+
+يجب أن يتضمن:
+
+* ID
+* Title
+* Content
+* Category
+* Domain
+* Keywords
+* Generated Questions
+* Related Knowledge
+* Visibility Rules
+* Access Permissions
+* Confidence Score
+* Importance Score
+* Last Updated
+
+مع تقديم نموذج JSON كامل.
+
+---
+
+### 7. Retrieval Architecture
+
+صمم استراتيجية استرجاع احترافية تعتمد على:
+
+* Hybrid Search
+* Semantic Search
+* Keyword Search
+* Metadata Filtering
+* Query Expansion
+* Reranking
+
+مع شرح ترتيب التنفيذ.
+
+---
+
+### 8. Reliability Layer
+
+أريد طبقة لضمان جودة الإجابات تشمل:
+
+* Confidence Scoring
+* Hallucination Reduction
+* Knowledge Validation
+* Citation Support
+* Fallback Strategies
+
+---
+
+### 9. Continuous Learning System
+
+صمم آلية تجعل المنصة تتعلم من:
+
+* أسئلة المستخدمين
+* المحادثات
+* حالات الفشل
+* الأسئلة التي لم يتم العثور على إجابات لها
+
+مع اقتراح Workflow كامل للتطوير المستمر.
+
+---
+
+### 10. Scalability Requirements
+
+صمم النظام بحيث يدعم:
+
+* ملايين الوثائق
+* آلاف المستخدمين المتزامنين
+* عشرات الوكلاء
+* التوسع الأفقي
+* التحديث دون توقف الخدمة
+
+---
+
+## المطلوب النهائي
+
+أريد مخرجات عملية وليست نظرية فقط:
+
+1. Architecture Diagram (Text Form)
+2. Data Flow Diagram
+3. Agent Hierarchy
+4. Knowledge Architecture
+5. Database Schema
+6. Retrieval Workflow
+7. Agent Communication Workflow
+8. Continuous Learning Workflow
+9. Recommended Technology Stack
+10. Migration Plan من النظام الحالي إلى النظام الجديد
+
+قم بالتصميم وكأن المنصة ستباع لاحقاً للشركات والمؤسسات وتحتاج إلى بنية احترافية قابلة للتوسع لعدة سنوات.

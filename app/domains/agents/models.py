@@ -6,17 +6,20 @@ import enum
 
 
 class AgentType(str, enum.Enum):
-    SALES = "sales"
+    SALES            = "sales"
     CUSTOMER_SERVICE = "customer_service"
-    OPERATIONS = "operations"
-    EXECUTIVE = "executive"
-    CUSTOM = "custom"
+    MARKET_INTEL     = "market_intel"
+    OPERATIONS       = "operations"
+    HR               = "hr"
+    FINANCE          = "finance"
+    EXECUTIVE        = "executive"
+    CUSTOM           = "custom"
 
 
 class AgentStatus(str, enum.Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    TRAINING = "training"
+    ACTIVE      = "active"
+    INACTIVE    = "inactive"
+    TRAINING    = "training"
     MAINTENANCE = "maintenance"
 
 
@@ -32,6 +35,12 @@ class Agent(Base):
     capabilities = Column(JSON, default=list)
     permissions = Column(JSON, default=list)
     config = Column(JSON, default=dict)
+    # Orchestration fields
+    domain = Column(String(50))              # primary knowledge domain this agent owns
+    knowledge_domains = Column(JSON, default=list)  # domains this agent can access
+    agent_priority = Column(Integer, default=5)     # 1 (highest) – 10 (lowest)
+    max_context_docs = Column(Integer, default=5)   # max docs pulled per query
+    # Performance
     performance_score = Column(Float, default=0.0)
     total_tasks = Column(Integer, default=0)
     successful_tasks = Column(Integer, default=0)

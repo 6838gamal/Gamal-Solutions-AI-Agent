@@ -6,26 +6,44 @@ import enum
 
 
 class DocumentType(str, enum.Enum):
-    PDF = "pdf"
-    WORD = "word"
-    EXCEL = "excel"
-    CSV = "csv"
-    TEXT = "text"
-    JSON = "json"
-    URL = "url"
-    MANUAL = "manual"
-    POLICY = "policy"
+    PDF       = "pdf"
+    WORD      = "word"
+    EXCEL     = "excel"
+    CSV       = "csv"
+    TEXT      = "text"
+    JSON      = "json"
+    URL       = "url"
+    MANUAL    = "manual"
+    POLICY    = "policy"
     PROCEDURE = "procedure"
-    CONTRACT = "contract"
-    FAQ = "faq"
-    OTHER = "other"
+    CONTRACT  = "contract"
+    FAQ       = "faq"
+    OTHER     = "other"
 
 
 class KnowledgeStatus(str, enum.Enum):
     PROCESSING = "processing"
-    ACTIVE = "active"
-    ARCHIVED = "archived"
-    ERROR = "error"
+    ACTIVE     = "active"
+    ARCHIVED   = "archived"
+    ERROR      = "error"
+
+
+class KnowledgeDomain(str, enum.Enum):
+    """Which functional domain owns / primarily uses this document."""
+    CUSTOMER_SUPPORT = "customer_support"
+    SALES            = "sales"
+    MARKET_INTEL     = "market_intel"
+    HR               = "hr"
+    FINANCE          = "finance"
+    OPERATIONS       = "operations"
+    PRODUCT          = "product"
+    GENERAL          = "general"
+
+
+class KnowledgeVisibility(str, enum.Enum):
+    GLOBAL          = "global"           # all agents can access
+    DOMAIN_SPECIFIC = "domain_specific"  # only agents in allowed_agent_types
+    PRIVATE         = "private"          # internal only, not exposed via RAG
 
 
 class KnowledgeCategory(Base):
@@ -58,6 +76,11 @@ class KnowledgeDocument(Base):
     file_size = Column(Integer, default=0)
     is_trained = Column(Boolean, default=False)
     trained_at = Column(DateTime, nullable=True)
+    # Domain architecture fields
+    domain = Column(String(50), default="general")           # KnowledgeDomain value
+    visibility = Column(String(30), default="global")        # KnowledgeVisibility value
+    allowed_agent_types = Column(JSON, default=list)         # [] = all agents
+    importance_score = Column(Float, default=1.0)            # document-level importance
     # Retrieval analytics
     retrieval_count = Column(Integer, default=0)
     last_retrieved_at = Column(DateTime, nullable=True)

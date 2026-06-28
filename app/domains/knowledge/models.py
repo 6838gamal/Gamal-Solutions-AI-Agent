@@ -58,8 +58,55 @@ class KnowledgeDocument(Base):
     file_size = Column(Integer, default=0)
     is_trained = Column(Boolean, default=False)
     trained_at = Column(DateTime, nullable=True)
+    # Retrieval analytics
+    retrieval_count = Column(Integer, default=0)
+    last_retrieved_at = Column(DateTime, nullable=True)
     category_id = Column(Integer, ForeignKey("knowledge_categories.id"))
     created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     category = relationship("KnowledgeCategory", back_populates="documents")
+    chunks = relationship(
+        "KnowledgeChunk",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="KnowledgeChunk.chunk_index",
+    )
+
+
+class KnowledgeChunk(Base):
+    """
+    Per-chunk storage — enables BM25 chunk-level retrieval and question matching.
+    Each KnowledgeDocument has N chunks; each chunk stores its text, extracted
+    keywords, and generated questions (what a user might ask that this chunk answers).
+    """
+    __tablename__ = "knowledge_chunks"
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("knowledge_documents.id", ondelete="CASCADE"), nullable=False)
+    chunk_index = Column(Integer, nullable=False)
+    text = Column(Text, nullable=False)
+    keywords = Column(JSON, default=list)       # [{term, count, score}]
+    questions = Column(JSON, default=list)      # ["ما هو X؟", "كيف أفعل Y؟", ...]
+    section_heading = Column(String(500))
+    char_count = Column(Integer, default=0)
+    word_count = Column(Integer, default=0)
+    importance_score = Column(Float, default=1.0)
+    retrieval_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    document = relationship("KnowledgeDocument", back_populates="chunks")
+
+
+class KnowledgeFeedback(Base):
+    """
+    Feedback loop — tracks whether retrieved chunks were helpful.
+    Used to boost importance_score of consistently helpful chunks over time.
+    """
+    __tablename__ = "knowledge_feedback"
+    id = Column(Integer, primary_key=True, index=True)
+    query = Column(Text, nullable=False)
+    doc_id = Column(Integer, ForeignKey("knowledge_documents.id"), nullable=True)
+    chunk_id = Column(Integer, ForeignKey("knowledge_chunks.id"), nullable=True)
+    was_helpful = Column(Boolean, nullable=True)
+    feedback_text = Column(Text)
+    confidence_shown = Column(String(10))       # HIGH / MEDIUM / LOW shown to user
+    created_at = Column(DateTime, default=datetime.utcnow)

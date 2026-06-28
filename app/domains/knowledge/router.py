@@ -22,16 +22,16 @@ ALLOWED_EXTENSIONS = {
 }
 
 EXT_TO_TYPE = {
-    ".pdf": models.DocumentType.PDF,
-    ".docx": models.DocumentType.WORD,
-    ".doc": models.DocumentType.WORD,
-    ".xlsx": models.DocumentType.EXCEL,
-    ".xls": models.DocumentType.EXCEL,
-    ".csv": models.DocumentType.CSV,
-    ".txt": models.DocumentType.TEXT,
-    ".text": models.DocumentType.TEXT,
-    ".json": models.DocumentType.JSON,
-    ".md": models.DocumentType.TEXT,
+    ".pdf":   models.DocumentType.PDF,
+    ".docx":  models.DocumentType.WORD,
+    ".doc":   models.DocumentType.WORD,
+    ".xlsx":  models.DocumentType.EXCEL,
+    ".xls":   models.DocumentType.EXCEL,
+    ".csv":   models.DocumentType.CSV,
+    ".txt":   models.DocumentType.TEXT,
+    ".text":  models.DocumentType.TEXT,
+    ".json":  models.DocumentType.JSON,
+    ".md":    models.DocumentType.TEXT,
 }
 
 
@@ -260,15 +260,36 @@ def train_document(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    from app.domains.knowledge.pipeline import build_training_json
+    """
+    Full RAG pipeline v3.0:
+    Clean → Section Detect → Semantic Chunk (with overlap) →
+    Per-chunk Keywords + Questions → Entities → Facts → Intent →
+    Save chunks to knowledge_chunks table for BM25 chunk-level retrieval.
+    """
+    from app.domains.knowledge.pipeline import build_training_json, build_chunks_for_db
+
     doc = db.query(models.KnowledgeDocument).filter(models.KnowledgeDocument.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     if doc.status != models.KnowledgeStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="يجب أن تكون الوثيقة في حالة نشطة للتدريب")
 
-    # Full RAG pipeline: Clean → Chunk → Knowledge Extraction → Structured JSON
-    doc.content = build_training_json(doc)
+    # Run full pipeline
+    training_json = build_training_json(doc)
+
+    # Delete old chunks (re-train)
+    db.query(models.KnowledgeChunk).filter(
+        models.KnowledgeChunk.document_id == doc_id
+    ).delete(synchronize_session=False)
+
+    # Save new chunks to DB for fast retrieval
+    chunks_data = build_chunks_for_db(doc, training_json)
+    for cd in chunks_data:
+        chunk_obj = models.KnowledgeChunk(**cd)
+        db.add(chunk_obj)
+
+    # Update document
+    doc.content = training_json
     doc.is_trained = True
     doc.trained_at = datetime.utcnow()
     doc.updated_at = datetime.utcnow()
@@ -276,21 +297,27 @@ def train_document(
 
     import json as _json
     try:
-        parsed = _json.loads(doc.content)
+        parsed = _json.loads(training_json)
         stats = parsed.get("stats", {})
+        pipeline_info = parsed.get("pipeline", {})
     except Exception:
         stats = {}
+        pipeline_info = {}
 
     return {
-        "message": "تم تدريب الوكيل على هذه الوثيقة",
+        "message": "تم تدريب الوكيل على هذه الوثيقة بنجاح (Pipeline v3.0)",
         "doc_id": doc_id,
         "pipeline": {
-            "chunks":   stats.get("chunk_count", 0),
-            "keywords": stats.get("keyword_count", 0),
-            "facts":    stats.get("fact_count", 0),
-            "intent":   _json.loads(doc.content).get("intent") if doc.content else None,
-            "language": _json.loads(doc.content).get("language") if doc.content else None,
-        }
+            "version":       pipeline_info.get("version", "3.0"),
+            "chunks":        stats.get("chunk_count", 0),
+            "keywords":      stats.get("keyword_count", 0),
+            "facts":         stats.get("fact_count", 0),
+            "questions":     stats.get("question_count", 0),
+            "intent":        parsed.get("intent") if training_json else None,
+            "language":      parsed.get("language") if training_json else None,
+            "stages":        pipeline_info.get("stages", []),
+        },
+        "chunks_saved_to_db": len(chunks_data),
     }
 
 
@@ -303,6 +330,12 @@ def untrain_document(
     doc = db.query(models.KnowledgeDocument).filter(models.KnowledgeDocument.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # Delete stored chunks
+    db.query(models.KnowledgeChunk).filter(
+        models.KnowledgeChunk.document_id == doc_id
+    ).delete(synchronize_session=False)
+
     doc.is_trained = False
     doc.trained_at = None
     doc.updated_at = datetime.utcnow()
@@ -329,6 +362,46 @@ def delete_document(
     return {"message": "تم حذف الوثيقة"}
 
 
+# ─── CHUNKS ───────────────────────────────────────────────────────────────────
+
+@router.get("/documents/{doc_id}/chunks")
+def get_document_chunks(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Inspect all chunks and their generated questions for a trained document."""
+    doc = db.query(models.KnowledgeDocument).filter(models.KnowledgeDocument.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    chunks = (
+        db.query(models.KnowledgeChunk)
+        .filter(models.KnowledgeChunk.document_id == doc_id)
+        .order_by(models.KnowledgeChunk.chunk_index)
+        .all()
+    )
+    return {
+        "doc_id":      doc_id,
+        "title":       doc.title_ar or doc.title,
+        "chunk_count": len(chunks),
+        "chunks": [
+            {
+                "id":              ch.id,
+                "index":           ch.chunk_index,
+                "text":            ch.text,
+                "section":         ch.section_heading,
+                "keywords":        [k["term"] for k in (ch.keywords or [])][:8],
+                "questions":       ch.questions or [],
+                "word_count":      ch.word_count,
+                "importance":      ch.importance_score,
+                "retrieval_count": ch.retrieval_count,
+            }
+            for ch in chunks
+        ],
+    }
+
+
 # ─── RAG SEARCH ───────────────────────────────────────────────────────────────
 
 @router.get("/rag/search")
@@ -338,81 +411,173 @@ def rag_search(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Hybrid keyword + knowledge search across trained documents."""
+    """
+    Hybrid BM25 + question-match search across trained documents.
+    v3.0: searches at chunk level, returns confidence scores.
+    """
     from app.domains.knowledge.pipeline import rag_search as _rag_search
+
     trained_docs = (
         db.query(models.KnowledgeDocument)
         .filter(models.KnowledgeDocument.is_trained == True)
         .all()
     )
-    results = _rag_search(q, trained_docs, top_k=top_k)
-    return {"query": q, "results": results, "total": len(results)}
+    results = _rag_search(q, trained_docs, top_k=top_k, db=db)
 
+    # Update retrieval stats for matched docs
+    if results:
+        matched_ids = [r["doc_id"] for r in results]
+        now = datetime.utcnow()
+        db.query(models.KnowledgeDocument).filter(
+            models.KnowledgeDocument.id.in_(matched_ids)
+        ).update(
+            {
+                models.KnowledgeDocument.retrieval_count: models.KnowledgeDocument.retrieval_count + 1,
+                models.KnowledgeDocument.last_retrieved_at: now,
+            },
+            synchronize_session=False,
+        )
+        # Also increment chunk retrieval counts
+        for r in results:
+            if r.get("matched_questions"):
+                pass  # chunk_id tracking can be added later
+        db.commit()
+
+    return {
+        "query":    q,
+        "expanded": True,
+        "results":  results,
+        "total":    len(results),
+    }
+
+
+# ─── FEEDBACK LOOP ────────────────────────────────────────────────────────────
+
+@router.post("/rag/feedback")
+def submit_feedback(
+    query: str,
+    doc_id: int | None = None,
+    chunk_id: int | None = None,
+    was_helpful: bool | None = None,
+    feedback_text: str | None = None,
+    confidence_shown: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Record whether a retrieved result was helpful.
+    Feedback is used to track quality and can be used to boost chunk importance.
+    """
+    fb = models.KnowledgeFeedback(
+        query=query,
+        doc_id=doc_id,
+        chunk_id=chunk_id,
+        was_helpful=was_helpful,
+        feedback_text=feedback_text,
+        confidence_shown=confidence_shown,
+    )
+    db.add(fb)
+
+    # Boost chunk importance if helpful
+    if was_helpful and chunk_id:
+        chunk = db.query(models.KnowledgeChunk).filter(
+            models.KnowledgeChunk.id == chunk_id
+        ).first()
+        if chunk:
+            chunk.importance_score = min(chunk.importance_score + 0.05, 2.0)
+            chunk.retrieval_count += 1
+    elif was_helpful is False and chunk_id:
+        chunk = db.query(models.KnowledgeChunk).filter(
+            models.KnowledgeChunk.id == chunk_id
+        ).first()
+        if chunk:
+            chunk.importance_score = max(chunk.importance_score - 0.03, 0.5)
+
+    db.commit()
+    return {"message": "تم تسجيل التقييم بنجاح", "feedback_id": fb.id}
+
+
+# ─── PIPELINE SUMMARY ─────────────────────────────────────────────────────────
 
 @router.get("/pipeline/summary")
 def pipeline_summary(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Overview of RAG pipeline processing across all trained documents."""
+    """Overview of RAG pipeline v3.0 processing across all trained documents."""
     import json as _json
+
     trained = (
         db.query(models.KnowledgeDocument)
         .filter(models.KnowledgeDocument.is_trained == True)
         .order_by(models.KnowledgeDocument.trained_at.desc())
         .all()
     )
+
     docs_info = []
     total_chunks = 0
     total_facts = 0
     total_keywords = 0
+    total_questions = 0
     intents: dict = {}
     languages: dict = {}
 
     for doc in trained:
+        # Count DB chunks for this doc
+        db_chunk_count = db.query(models.KnowledgeChunk).filter(
+            models.KnowledgeChunk.document_id == doc.id
+        ).count()
+
         info: dict = {
-            "id":         doc.id,
-            "title":      doc.title_ar or doc.title,
-            "type":       str(doc.doc_type.value) if doc.doc_type else "other",
-            "trained_at": doc.trained_at.isoformat() if doc.trained_at else None,
-            "pipeline_v": "1.0",
-            "intent":     None,
-            "language":   None,
-            "chunks":     0,
-            "facts":      0,
-            "keywords":   0,
-            "stages":     [],
+            "id":              doc.id,
+            "title":           doc.title_ar or doc.title,
+            "type":            str(doc.doc_type.value) if doc.doc_type else "other",
+            "trained_at":      doc.trained_at.isoformat() if doc.trained_at else None,
+            "pipeline_v":      "1.0",
+            "intent":          None,
+            "language":        None,
+            "chunks":          db_chunk_count,
+            "facts":           0,
+            "keywords":        0,
+            "questions":       0,
+            "retrieval_count": doc.retrieval_count or 0,
+            "stages":          [],
         }
+
         if doc.content:
             try:
                 data = _json.loads(doc.content)
                 stats = data.get("stats", {})
-                info["intent"]    = data.get("intent")
-                info["language"]  = data.get("language")
-                info["chunks"]    = stats.get("chunk_count", 0)
-                info["facts"]     = stats.get("fact_count", 0)
-                info["keywords"]  = stats.get("keyword_count", 0)
-                info["pipeline_v"] = data.get("pipeline", {}).get("version", "1.0")
-                info["stages"]    = data.get("pipeline", {}).get("stages", [])
-                total_chunks   += info["chunks"]
-                total_facts    += info["facts"]
-                total_keywords += info["keywords"]
+                info["intent"]      = data.get("intent")
+                info["language"]    = data.get("language")
+                info["facts"]       = stats.get("fact_count", 0)
+                info["keywords"]    = stats.get("keyword_count", 0)
+                info["questions"]   = stats.get("question_count", 0)
+                info["pipeline_v"]  = data.get("pipeline", {}).get("version", "1.0")
+                info["stages"]      = data.get("pipeline", {}).get("stages", [])
+                total_facts       += info["facts"]
+                total_keywords    += info["keywords"]
+                total_questions   += info["questions"]
                 if info["intent"]:
                     intents[info["intent"]] = intents.get(info["intent"], 0) + 1
                 if info["language"]:
                     languages[info["language"]] = languages.get(info["language"], 0) + 1
             except Exception:
                 pass
+
+        total_chunks += db_chunk_count
         docs_info.append(info)
 
     return {
         "overview": {
-            "total_trained":    len(trained),
-            "total_chunks":     total_chunks,
-            "total_facts":      total_facts,
-            "total_keywords":   total_keywords,
-            "intent_breakdown": intents,
+            "total_trained":      len(trained),
+            "total_chunks":       total_chunks,
+            "total_facts":        total_facts,
+            "total_keywords":     total_keywords,
+            "total_questions":    total_questions,
+            "intent_breakdown":   intents,
             "language_breakdown": languages,
+            "pipeline_version":   "3.0",
         },
         "documents": docs_info,
     }

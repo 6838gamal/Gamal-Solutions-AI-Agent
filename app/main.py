@@ -144,6 +144,35 @@ def startup():
                 )""",
                 "ALTER TABLE telegram_accounts ADD COLUMN IF NOT EXISTS market_analysis JSONB",
                 "ALTER TABLE telegram_accounts ADD COLUMN IF NOT EXISTS market_analysis_at TIMESTAMP",
+                # RAG v3.0 — knowledge_chunks (per-chunk BM25 retrieval)
+                """CREATE TABLE IF NOT EXISTS knowledge_chunks (
+                    id SERIAL PRIMARY KEY,
+                    document_id INTEGER REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+                    chunk_index INTEGER NOT NULL,
+                    text TEXT NOT NULL,
+                    keywords JSONB DEFAULT '[]',
+                    questions JSONB DEFAULT '[]',
+                    section_heading VARCHAR(500),
+                    char_count INTEGER DEFAULT 0,
+                    word_count INTEGER DEFAULT 0,
+                    importance_score FLOAT DEFAULT 1.0,
+                    retrieval_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )""",
+                # RAG v3.0 — knowledge_feedback (feedback loop)
+                """CREATE TABLE IF NOT EXISTS knowledge_feedback (
+                    id SERIAL PRIMARY KEY,
+                    query TEXT NOT NULL,
+                    doc_id INTEGER REFERENCES knowledge_documents(id),
+                    chunk_id INTEGER REFERENCES knowledge_chunks(id),
+                    was_helpful BOOLEAN,
+                    feedback_text TEXT,
+                    confidence_shown VARCHAR(10),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )""",
+                # RAG v3.0 — retrieval analytics on documents
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS retrieval_count INTEGER DEFAULT 0",
+                "ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS last_retrieved_at TIMESTAMP",
                 # API Keys table
                 """CREATE TABLE IF NOT EXISTS api_keys (
                     id SERIAL PRIMARY KEY,

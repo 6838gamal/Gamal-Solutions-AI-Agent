@@ -387,6 +387,48 @@ def health():
     return {"status": "ok", "version": settings.VERSION, "project": settings.PROJECT_NAME}
 
 
+@app.get("/api/v1/system/keepalive-status")
+def keepalive_status():
+    """
+    Returns the current keepalive state + seconds until the next server-side ping.
+    Used by the dashboard countdown widget (no auth required — read-only metrics).
+    """
+    import math
+    now = datetime.utcnow()
+    uptime_secs = int((now - _SERVER_START).total_seconds())
+
+    # Calculate seconds until next server-side ping
+    INTERVAL = 7 * 60  # 420 seconds
+    if _keepalive_state["last_ping"]:
+        try:
+            last_dt = datetime.fromisoformat(_keepalive_state["last_ping"])
+            elapsed = int((now - last_dt).total_seconds())
+            next_in = max(0, INTERVAL - elapsed)
+        except Exception:
+            next_in = INTERVAL
+    else:
+        # Not pinged yet — estimate from uptime (first ping fires after 20s)
+        next_in = max(0, INTERVAL - ((uptime_secs - 20) % INTERVAL)) if uptime_secs > 20 else max(0, 20 - uptime_secs)
+
+    hours, rem   = divmod(uptime_secs, 3600)
+    minutes, sec = divmod(rem, 60)
+
+    return {
+        "server_ok":      True,
+        "uptime":         f"{hours}س {minutes}د {sec}ث",
+        "uptime_secs":    uptime_secs,
+        "ping_count":     _keepalive_state["ping_count"],
+        "fail_count":     _keepalive_state["fail_count"],
+        "last_ping":      _keepalive_state["last_ping"],
+        "last_status":    _keepalive_state["last_status"],
+        "next_ping_in":   next_in,          # seconds
+        "interval":       INTERVAL,
+        "history":        _keepalive_state["history"][-5:],
+        "url":            _keepalive_state["url"],
+        "timestamp":      now.isoformat(),
+    }
+
+
 @app.get("/status")
 def status_page(request: Request):
     """Public server status dashboard — no auth required."""

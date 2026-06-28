@@ -71,6 +71,123 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- SERVER KEEPALIVE MONITOR CARD                            -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-8" id="ka-card">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+      <!-- pulse dot -->
+      <span class="relative flex h-3 w-3">
+        <span id="ka-pulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+        <span id="ka-dot" class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+      </span>
+      مراقبة يقظة السيرفر
+    </h3>
+    <div class="flex items-center gap-2">
+      <a href="/status" target="_blank"
+         class="text-xs text-slate-400 hover:text-blue-500 flex items-center gap-1 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+        صفحة الحالة الكاملة
+      </a>
+      <button onclick="manualPing()"
+              class="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        ping الآن
+      </button>
+    </div>
+  </div>
+
+  <!-- ── 4 metric cells ─────────────────────────────────────── -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+
+    <!-- Countdown -->
+    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 text-center">
+      <div class="text-xs text-slate-500 mb-1 font-medium">التنشيط التالي</div>
+      <div id="ka-countdown" class="text-2xl font-bold text-blue-700 font-mono tracking-wider">—:——</div>
+      <div class="text-xs text-slate-400 mt-1">من أصل 7:00 دقائق</div>
+      <!-- Mini arc progress bar -->
+      <div class="mt-2 h-1.5 bg-blue-100 rounded-full overflow-hidden">
+        <div id="ka-progress" class="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full transition-all duration-1000"
+             style="width:100%"></div>
+      </div>
+    </div>
+
+    <!-- Last ping status -->
+    <div class="bg-slate-50 rounded-xl p-4 text-center">
+      <div class="text-xs text-slate-500 mb-1 font-medium">آخر اتصال</div>
+      <div id="ka-last-icon" class="text-2xl mb-0.5">⏳</div>
+      <div id="ka-last-time" class="text-xs text-slate-500">جارٍ التحميل...</div>
+      <div id="ka-last-status" class="text-xs font-bold mt-0.5 text-slate-400">—</div>
+    </div>
+
+    <!-- Ping count -->
+    <div class="bg-emerald-50 rounded-xl p-4 text-center">
+      <div class="text-xs text-slate-500 mb-1 font-medium">اتصالات ناجحة</div>
+      <div id="ka-ping-count" class="text-2xl font-bold text-emerald-600">—</div>
+      <div class="text-xs text-emerald-500 mt-1">ping ✓</div>
+    </div>
+
+    <!-- Uptime -->
+    <div class="bg-violet-50 rounded-xl p-4 text-center">
+      <div class="text-xs text-slate-500 mb-1 font-medium">وقت التشغيل</div>
+      <div id="ka-uptime" class="text-sm font-bold text-violet-700 leading-tight">—</div>
+      <div id="ka-fail-count" class="text-xs text-slate-400 mt-1">— فشل</div>
+    </div>
+  </div>
+
+  <!-- ── Mini ping history bars ─────────────────────────────── -->
+  <div>
+    <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+      <span>آخر الاتصالات</span>
+      <span id="ka-sync-label" class="text-slate-300">يُزامَن مع السيرفر</span>
+    </div>
+    <div id="ka-history-bars" class="flex items-end gap-1.5" style="height:32px">
+      <!-- filled by JS -->
+      <div class="flex-1 rounded-sm bg-slate-100" style="height:50%"></div>
+      <div class="flex-1 rounded-sm bg-slate-100" style="height:50%"></div>
+      <div class="flex-1 rounded-sm bg-slate-100" style="height:50%"></div>
+      <div class="flex-1 rounded-sm bg-slate-100" style="height:50%"></div>
+      <div class="flex-1 rounded-sm bg-slate-100" style="height:50%"></div>
+    </div>
+    <div class="flex items-center gap-4 mt-2 text-xs text-slate-400">
+      <span class="flex items-center gap-1">
+        <span class="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block"></span> ناجح
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="w-2.5 h-2.5 rounded-sm bg-red-400 inline-block"></span> فشل
+      </span>
+      <span class="mr-auto flex items-center gap-1">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        كل 7 دقائق تلقائياً
+      </span>
+    </div>
+  </div>
+
+  <!-- ── Browser ping log ──────────────────────────────────── -->
+  <div id="browser-ping-row" class="hidden mt-3 pt-3 border-t border-slate-100">
+    <div class="flex items-center gap-2 text-xs text-slate-500">
+      <svg class="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/>
+      </svg>
+      <span>آخر ping من المتصفح:</span>
+      <span id="browser-ping-time" class="font-medium text-blue-600">—</span>
+      <span id="browser-ping-status" class="font-bold">—</span>
+    </div>
+  </div>
+</div>
+<!-- ══════════════════════════════════════════════════════════ -->
+
 <!-- Charts -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
   <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
@@ -86,6 +203,9 @@
 
 {% block scripts %}
 <script>
+/* ─────────────────────────────────────────────────────────────────────
+   CHARTS
+───────────────────────────────────────────────────────────────────── */
 const customerLabels = {{ customer_by_status.keys() | list | tojson }};
 const customerData   = {{ customer_by_status.values() | list | tojson }};
 const labelMap = {lead:'عميل محتمل',prospect:'فرصة',active:'نشط',inactive:'غير نشط',churned:'مغادر'};
@@ -94,9 +214,12 @@ new Chart(document.getElementById('customersChart'), {
   type: 'doughnut',
   data: {
     labels: customerLabels.map(l => labelMap[l] || l),
-    datasets: [{ data: customerData, backgroundColor: ['#3b82f6','#10b981','#f59e0b','#6366f1','#ef4444'], borderWidth: 0 }]
+    datasets: [{ data: customerData,
+      backgroundColor: ['#3b82f6','#10b981','#f59e0b','#6366f1','#ef4444'],
+      borderWidth: 0 }]
   },
-  options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { family: 'Cairo' } } } } }
+  options: { responsive: true,
+    plugins: { legend: { position: 'bottom', labels: { font: { family: 'Cairo' } } } } }
 });
 
 new Chart(document.getElementById('systemChart'), {
@@ -105,11 +228,178 @@ new Chart(document.getElementById('systemChart'), {
     labels: ['الوكلاء','العملاء','المحادثات','المهام','الوثائق','سير العمل'],
     datasets: [{
       label: 'الإجمالي',
-      data: [{{ stats.total_agents }}, {{ stats.total_customers }}, {{ stats.total_conversations }}, {{ stats.total_tasks }}, {{ stats.total_documents }}, {{ stats.total_workflows }}],
+      data: [{{ stats.total_agents }}, {{ stats.total_customers }},
+             {{ stats.total_conversations }}, {{ stats.total_tasks }},
+             {{ stats.total_documents }}, {{ stats.total_workflows }}],
       backgroundColor: '#3b82f6', borderRadius: 8
     }]
   },
-  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  options: { responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true } } }
 });
+
+/* ─────────────────────────────────────────────────────────────────────
+   KEEPALIVE MONITOR
+   - Fetches /api/v1/system/keepalive-status on load + every 60s
+   - Counts down locally every second (accurate to ±1s)
+   - Fires a browser-side /health ping every 7 minutes (double keepalive)
+   - Shows history bars, last ping time, uptime, etc.
+───────────────────────────────────────────────────────────────────── */
+const KA_INTERVAL = 420; // 7 minutes in seconds
+let   kaSecondsLeft = KA_INTERVAL;
+let   kaTickTimer   = null;
+let   browserPingCount = 0;
+
+/* Format seconds as M:SS */
+function fmtCountdown(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+/* Format ISO datetime string to readable Arabic-friendly time */
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+/* Render the 5-bar ping history */
+function renderHistory(history) {
+  const el = document.getElementById('ka-history-bars');
+  if (!history || !history.length) return;
+  el.innerHTML = history.map(h => {
+    const ok    = h.ok;
+    const color = ok ? 'background:linear-gradient(180deg,#10b981,#34d399)' : 'background:linear-gradient(180deg,#ef4444,#f87171)';
+    const ht    = ok ? '100%' : '35%';
+    const tip   = (h.time || '').split('T')[1]?.split('.')[0] || '';
+    return `<div class="flex-1 rounded-sm" style="height:${ht};${color}" title="${tip}"></div>`;
+  }).join('');
+}
+
+/* Update all UI elements from a status object */
+function applyStatus(data) {
+  // Dot color
+  const dot   = document.getElementById('ka-dot');
+  const pulse = document.getElementById('ka-pulse');
+  dot.className   = 'relative inline-flex rounded-full h-3 w-3 ' + (data.server_ok ? 'bg-emerald-500' : 'bg-red-500');
+  pulse.className = 'animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ' + (data.server_ok ? 'bg-emerald-400' : 'bg-red-400');
+
+  // Countdown — sync from server
+  kaSecondsLeft = Math.max(0, data.next_ping_in);
+
+  // Last ping
+  const lastOk = data.last_status === 200;
+  document.getElementById('ka-last-icon').textContent  = data.last_ping ? (lastOk ? '✅' : '❌') : '⏳';
+  document.getElementById('ka-last-time').textContent  = data.last_ping ? fmtTime(data.last_ping) : 'في انتظار أول ping...';
+  document.getElementById('ka-last-status').textContent = data.last_status ? `HTTP ${data.last_status}` : '—';
+  document.getElementById('ka-last-status').className  =
+    'text-xs font-bold mt-0.5 ' + (lastOk ? 'text-emerald-500' : 'text-red-500');
+
+  // Counts
+  document.getElementById('ka-ping-count').textContent = data.ping_count ?? '—';
+  document.getElementById('ka-uptime').textContent     = data.uptime || '—';
+  document.getElementById('ka-fail-count').textContent = `${data.fail_count ?? 0} فشل`;
+
+  // History bars
+  renderHistory(data.history);
+
+  // Sync label
+  document.getElementById('ka-sync-label').textContent =
+    'آخر مزامنة: ' + new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+/* Tick every second — decrement countdown, update progress bar */
+function tick() {
+  if (kaSecondsLeft > 0) kaSecondsLeft--;
+
+  document.getElementById('ka-countdown').textContent = fmtCountdown(kaSecondsLeft);
+
+  // Progress bar: full when just pinged (kaSecondsLeft ≈ KA_INTERVAL), empty at 0
+  const pct = Math.round((kaSecondsLeft / KA_INTERVAL) * 100);
+  const bar = document.getElementById('ka-progress');
+  bar.style.width = pct + '%';
+
+  // Color shift: green → amber → red as time runs out
+  if (pct > 40) {
+    bar.style.background = 'linear-gradient(90deg,#6366f1,#3b82f6)';
+  } else if (pct > 15) {
+    bar.style.background = 'linear-gradient(90deg,#f59e0b,#fbbf24)';
+  } else {
+    bar.style.background = 'linear-gradient(90deg,#ef4444,#f87171)';
+  }
+}
+
+/* Fetch status from server and update UI */
+async function syncStatus() {
+  try {
+    const r = await fetch('/api/v1/system/keepalive-status');
+    if (r.ok) {
+      const data = await r.json();
+      applyStatus(data);
+    }
+  } catch(e) {
+    // Server temporarily unreachable — keep counting locally
+    document.getElementById('ka-dot').className =
+      'relative inline-flex rounded-full h-3 w-3 bg-amber-500';
+  }
+}
+
+/* Browser-side keepalive ping (independent of server-side thread) */
+async function browserPing() {
+  try {
+    const r = await fetch('/health');
+    browserPingCount++;
+    const row = document.getElementById('browser-ping-row');
+    row.classList.remove('hidden');
+    document.getElementById('browser-ping-time').textContent =
+      new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const statusEl = document.getElementById('browser-ping-status');
+    if (r.ok) {
+      statusEl.textContent = '✓ ناجح';
+      statusEl.className   = 'font-bold text-emerald-500';
+    } else {
+      statusEl.textContent = `✗ ${r.status}`;
+      statusEl.className   = 'font-bold text-red-500';
+    }
+  } catch(e) {
+    document.getElementById('browser-ping-status').textContent = '✗ خطأ';
+    document.getElementById('browser-ping-status').className   = 'font-bold text-red-500';
+  }
+  // Re-sync status after browser ping
+  await syncStatus();
+}
+
+/* Manual ping button */
+async function manualPing() {
+  const btn = document.querySelector('[onclick="manualPing()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'جارٍ الاتصال...'; }
+  await browserPing();
+  if (btn) { btn.disabled = false; btn.innerHTML = `
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+    ping الآن`; }
+}
+
+/* ── Bootstrap ──────────────────────────────────────────── */
+(async () => {
+  // Initial fetch
+  await syncStatus();
+
+  // Tick every second
+  kaTickTimer = setInterval(tick, 1000);
+
+  // Re-sync with server every 60 seconds
+  setInterval(syncStatus, 60_000);
+
+  // Browser-side keepalive every 7 minutes
+  setInterval(browserPing, KA_INTERVAL * 1000);
+
+  // First browser ping after 30s (to confirm connectivity quickly)
+  setTimeout(browserPing, 30_000);
+})();
 </script>
 {% endblock %}

@@ -102,6 +102,16 @@
     class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
     الفئات
   </button>
+  <button id="tab-inspector" onclick="switchTab('inspector')"
+    class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-500 hover:text-slate-700">
+    <span class="flex items-center gap-1.5">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+      </svg>
+      مفتش التدريب
+    </span>
+  </button>
 </div>
 
 <!-- ═══ DOCUMENTS PANE ═══ -->
@@ -412,6 +422,90 @@
   </div>
 </div>
 
+
+<!-- ═══ TRAINING INSPECTOR PANE ═══ -->
+<div id="pane-inspector" class="hidden">
+
+  <!-- Global Stats -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5" id="insp-stats-row">
+    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+      <div id="insp-total-chunks" class="text-2xl font-bold text-blue-600">—</div>
+      <div class="text-xs text-slate-500 mt-1">إجمالي المقاطع</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+      <div id="insp-total-kw" class="text-2xl font-bold text-violet-600">—</div>
+      <div class="text-xs text-slate-500 mt-1">كلمات مفتاحية</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+      <div id="insp-total-q" class="text-2xl font-bold text-emerald-600">—</div>
+      <div class="text-xs text-slate-500 mt-1">حقائق/أسئلة</div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+      <div id="insp-total-docs" class="text-2xl font-bold text-amber-600">—</div>
+      <div class="text-xs text-slate-500 mt-1">وثائق مدرَّبة</div>
+    </div>
+  </div>
+
+  <!-- Two-column split -->
+  <div class="flex gap-4" style="min-height:600px">
+
+    <!-- Left: Document list -->
+    <div class="w-72 flex-shrink-0">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-full flex flex-col">
+        <div class="p-4 border-b border-slate-100">
+          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">الوثائق المدرَّبة</div>
+          <input id="insp-doc-search" type="text" placeholder="بحث في الوثائق..."
+            oninput="filterInspDocs()"
+            class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+        </div>
+        <div id="insp-doc-list" class="flex-1 overflow-y-auto divide-y divide-slate-50 text-sm">
+          <div class="flex items-center justify-center py-12 text-slate-400">
+            <span>جارٍ التحميل...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Chunk viewer -->
+    <div class="flex-1 min-w-0">
+      <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-full flex flex-col">
+
+        <!-- Header bar -->
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h3 id="insp-doc-title" class="font-semibold text-slate-800 text-sm">اختر وثيقة من القائمة</h3>
+            <p id="insp-doc-meta" class="text-xs text-slate-400 mt-0.5">—</p>
+          </div>
+          <!-- Chunk search + filter -->
+          <div class="flex items-center gap-2">
+            <input id="insp-chunk-search" type="text" placeholder="بحث في المقاطع..."
+              oninput="filterChunks()"
+              class="px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 w-48"/>
+            <select id="insp-sort" onchange="renderChunks()" class="text-xs border border-slate-200 rounded-xl px-2 py-1.5 focus:outline-none">
+              <option value="index">ترتيب المقطع</option>
+              <option value="importance">الأهمية</option>
+              <option value="retrieval">الاسترجاع</option>
+              <option value="keywords">الكلمات المفتاحية</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Chunks area -->
+        <div id="insp-chunks-area" class="flex-1 overflow-y-auto p-4 space-y-3">
+          <div id="insp-placeholder" class="flex flex-col items-center justify-center h-full py-20 text-slate-400">
+            <svg class="w-14 h-14 mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+            </svg>
+            <p class="font-medium text-slate-500">اختر وثيقة لعرض مقاطعها</p>
+            <p class="text-sm mt-1">ستظهر هنا المقاطع والكلمات المفتاحية والحقائق المستخرجة</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <!-- ═══ CATEGORIES PANE ═══ -->
 <div id="pane-cats" class="hidden">
@@ -813,14 +907,15 @@ function showToast(msg, type='success') {
 /* ── Tab Switching ───────────────────────────────── */
 function switchTab(tab) {
   const panes = {
-    docs:     'pane-docs',
-    training: 'pane-training',
-    pipeline: 'pane-pipeline',
-    rag:      'pane-rag',
-    cats:     'pane-cats',
+    docs:      'pane-docs',
+    training:  'pane-training',
+    pipeline:  'pane-pipeline',
+    rag:       'pane-rag',
+    cats:      'pane-cats',
+    inspector: 'pane-inspector',
   };
   const tabs = {
-    docs:     'tab-docs',
+    docs:      'tab-docs',
     training: 'tab-training',
     pipeline: 'tab-pipeline',
     rag:      'tab-rag',

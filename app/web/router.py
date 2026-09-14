@@ -452,6 +452,436 @@ def telegram_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
+# ─── WHATSAPP ─────────────────────────────────────────────────────────────────
+
+@router.get("/whatsapp", response_class=HTMLResponse)
+def whatsapp_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    # TODO: استبدل هذا بالاستعلامات الحقيقية بعد إنشاء domain whatsapp
+    account = None
+    messages = []
+    rules = []
+    try:
+        from app.domains.whatsapp import models as wa_models
+        account = db.query(wa_models.WhatsAppAccount).first()
+        if account:
+            messages = db.query(wa_models.WhatsAppMessage)\
+                .filter_by(account_id=account.id)\
+                .order_by(wa_models.WhatsAppMessage.received_at.desc())\
+                .limit(200).all()
+            rules = db.query(wa_models.WhatsAppReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception:
+        pass
+
+    def msg_to_dict(m):
+        return {
+            "id": m.id,
+            "message_id": getattr(m, "message_id", ""),
+            "chat_id": getattr(m, "chat_id", ""),
+            "chat_title": getattr(m, "chat_title", "") or "",
+            "sender_name": getattr(m, "sender_name", "") or "مجهول",
+            "sender_phone": getattr(m, "sender_phone", "") or "",
+            "content": getattr(m, "content", "") or "",
+            "direction": getattr(m, "direction", "incoming"),
+            "is_read": getattr(m, "is_read", False),
+            "is_analyzed": getattr(m, "is_analyzed", False),
+            "analysis_result": getattr(m, "analysis_result", {}) or {},
+            "reply_sent": getattr(m, "reply_sent", False),
+            "received_at": m.received_at.isoformat() if getattr(m, "received_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "keywords": getattr(r, "keywords", []) or [],
+            "reply_mode": getattr(r, "reply_mode", "auto"),
+            "reply_template": getattr(r, "reply_template", "") or "",
+            "replies_sent": getattr(r, "replies_sent", 0),
+        }
+
+    return templates.TemplateResponse("whatsapp.html", {
+        "request": request,
+        "user": user,
+        "page": "whatsapp",
+        "account": account,
+        "messages": messages,
+        "messages_json": json.dumps([msg_to_dict(m) for m in messages], ensure_ascii=False),
+        "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
+    })
+
+
+# ─── FACEBOOK ─────────────────────────────────────────────────────────────────
+
+@router.get("/facebook", response_class=HTMLResponse)
+def facebook_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    account = None
+    messages = []
+    rules = []
+    try:
+        from app.domains.facebook import models as fb_models
+        account = db.query(fb_models.FacebookAccount).first()
+        if account:
+            messages = db.query(fb_models.FacebookMessage)\
+                .filter_by(account_id=account.id)\
+                .order_by(fb_models.FacebookMessage.received_at.desc())\
+                .limit(200).all()
+            rules = db.query(fb_models.FacebookReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception:
+        pass
+
+    def msg_to_dict(m):
+        return {
+            "id": m.id,
+            "message_id": getattr(m, "message_id", ""),
+            "page_id": getattr(m, "page_id", ""),
+            "sender_name": getattr(m, "sender_name", "") or "مجهول",
+            "sender_id": getattr(m, "sender_id", "") or "",
+            "content": getattr(m, "content", "") or "",
+            "direction": getattr(m, "direction", "incoming"),
+            "is_read": getattr(m, "is_read", False),
+            "is_analyzed": getattr(m, "is_analyzed", False),
+            "analysis_result": getattr(m, "analysis_result", {}) or {},
+            "reply_sent": getattr(m, "reply_sent", False),
+            "received_at": m.received_at.isoformat() if getattr(m, "received_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "keywords": getattr(r, "keywords", []) or [],
+            "reply_mode": getattr(r, "reply_mode", "auto"),
+            "reply_template": getattr(r, "reply_template", "") or "",
+            "replies_sent": getattr(r, "replies_sent", 0),
+        }
+
+    return templates.TemplateResponse("facebook.html", {
+        "request": request,
+        "user": user,
+        "page": "facebook",
+        "account": account,
+        "messages": messages,
+        "messages_json": json.dumps([msg_to_dict(m) for m in messages], ensure_ascii=False),
+        "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
+    })
+
+
+# ─── INSTAGRAM ────────────────────────────────────────────────────────────────
+
+@router.get("/instagram", response_class=HTMLResponse)
+def instagram_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    account = None
+    messages = []
+    rules = []
+    try:
+        from app.domains.instagram import models as ig_models
+        account = db.query(ig_models.InstagramAccount).first()
+        if account:
+            messages = db.query(ig_models.InstagramMessage)\
+                .filter_by(account_id=account.id)\
+                .order_by(ig_models.InstagramMessage.received_at.desc())\
+                .limit(200).all()
+            rules = db.query(ig_models.InstagramReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception:
+        pass
+
+    def msg_to_dict(m):
+        return {
+            "id": m.id,
+            "message_id": getattr(m, "message_id", ""),
+            "ig_user_id": getattr(m, "ig_user_id", ""),
+            "username": getattr(m, "username", "") or "مجهول",
+            "content": getattr(m, "content", "") or "",
+            "media_type": getattr(m, "media_type", "") or "",
+            "direction": getattr(m, "direction", "incoming"),
+            "is_read": getattr(m, "is_read", False),
+            "is_analyzed": getattr(m, "is_analyzed", False),
+            "analysis_result": getattr(m, "analysis_result", {}) or {},
+            "reply_sent": getattr(m, "reply_sent", False),
+            "received_at": m.received_at.isoformat() if getattr(m, "received_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "keywords": getattr(r, "keywords", []) or [],
+            "reply_mode": getattr(r, "reply_mode", "auto"),
+            "reply_template": getattr(r, "reply_template", "") or "",
+            "replies_sent": getattr(r, "replies_sent", 0),
+        }
+
+    return templates.TemplateResponse("instagram.html", {
+        "request": request,
+        "user": user,
+        "page": "instagram",
+        "account": account,
+        "messages": messages,
+        "messages_json": json.dumps([msg_to_dict(m) for m in messages], ensure_ascii=False),
+        "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
+    })
+
+
+# ─── REDDIT ───────────────────────────────────────────────────────────────────
+
+@router.get("/reddit", response_class=HTMLResponse)
+def reddit_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    account = None
+    posts = []
+    comments = []
+    rules = []
+    try:
+        from app.domains.reddit import models as rd_models
+        account = db.query(rd_models.RedditAccount).first()
+        if account:
+            posts = db.query(rd_models.RedditPost)\
+                .filter_by(account_id=account.id)\
+                .order_by(rd_models.RedditPost.created_at.desc())\
+                .limit(200).all()
+            comments = db.query(rd_models.RedditComment)\
+                .filter_by(account_id=account.id)\
+                .order_by(rd_models.RedditComment.created_at.desc())\
+                .limit(200).all()
+            rules = db.query(rd_models.RedditReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception:
+        pass
+
+    def post_to_dict(p):
+        return {
+            "id": p.id,
+            "post_id": getattr(p, "post_id", ""),
+            "subreddit": getattr(p, "subreddit", "") or "",
+            "title": getattr(p, "title", "") or "",
+            "body": getattr(p, "body", "") or "",
+            "author": getattr(p, "author", "") or "مجهول",
+            "score": getattr(p, "score", 0),
+            "url": getattr(p, "url", "") or "",
+            "is_analyzed": getattr(p, "is_analyzed", False),
+            "analysis_result": getattr(p, "analysis_result", {}) or {},
+            "created_at": p.created_at.isoformat() if getattr(p, "created_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "subreddits": getattr(r, "subreddits", []) or [],
+            "keywords": getattr(r, "keywords", []) or [],
+            "reply_mode": getattr(r, "reply_mode", "auto"),
+            "reply_template": getattr(r, "reply_template", "") or "",
+            "replies_sent": getattr(r, "replies_sent", 0),
+        }
+
+    return templates.TemplateResponse("reddit.html", {
+        "request": request,
+        "user": user,
+        "page": "reddit",
+        "account": account,
+        "posts": posts,
+        "comments": comments,
+        "posts_json": json.dumps([post_to_dict(p) for p in posts], ensure_ascii=False),
+        "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
+    })
+
+
+# ─── TIKTOK ───────────────────────────────────────────────────────────────────
+
+@router.get("/tiktok", response_class=HTMLResponse)
+def tiktok_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    account = None
+    videos = []
+    comments = []
+    rules = []
+    try:
+        from app.domains.tiktok import models as tt_models
+        account = db.query(tt_models.TikTokAccount).first()
+        if account:
+            videos = db.query(tt_models.TikTokVideo)\
+                .filter_by(account_id=account.id)\
+                .order_by(tt_models.TikTokVideo.created_at.desc())\
+                .limit(200).all()
+            comments = db.query(tt_models.TikTokComment)\
+                .filter_by(account_id=account.id)\
+                .order_by(tt_models.TikTokComment.created_at.desc())\
+                .limit(200).all()
+            rules = db.query(tt_models.TikTokReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception:
+        pass
+
+    def video_to_dict(v):
+        return {
+            "id": v.id,
+            "video_id": getattr(v, "video_id", ""),
+            "title": getattr(v, "title", "") or "",
+            "description": getattr(v, "description", "") or "",
+            "author": getattr(v, "author", "") or "مجهول",
+            "views": getattr(v, "views", 0),
+            "likes": getattr(v, "likes", 0),
+            "comments_count": getattr(v, "comments_count", 0),
+            "shares": getattr(v, "shares", 0),
+            "url": getattr(v, "url", "") or "",
+            "is_analyzed": getattr(v, "is_analyzed", False),
+            "analysis_result": getattr(v, "analysis_result", {}) or {},
+            "created_at": v.created_at.isoformat() if getattr(v, "created_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "keywords": getattr(r, "keywords", []) or [],
+            "reply_mode": getattr(r, "reply_mode", "auto"),
+            "reply_template": getattr(r, "reply_template", "") or "",
+            "replies_sent": getattr(r, "replies_sent", 0),
+        }
+
+    return templates.TemplateResponse("tiktok.html", {
+        "request": request,
+        "user": user,
+        "page": "tiktok",
+        "account": account,
+        "videos": videos,
+        "comments": comments,
+        "videos_json": json.dumps([video_to_dict(v) for v in videos], ensure_ascii=False),
+        "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
+    })
+
+
+# ─── YOUTUBE ──────────────────────────────────────────────────────────────────
+
+@router.get("/youtube", response_class=HTMLResponse)
+def youtube_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    account = None
+    videos = []
+    comments = []
+    rules = []
+    try:
+        from app.domains.youtube import models as yt_models
+        account = db.query(yt_models.YouTubeAccount).first()
+        if account:
+            videos = db.query(yt_models.YouTubeVideo)\
+                .filter_by(account_id=account.id)\
+                .order_by(yt_models.YouTubeVideo.created_at.desc())\
+                .limit(200).all()
+            comments = db.query(yt_models.YouTubeComment)\
+                .filter_by(account_id=account.id)\
+                .order_by(yt_models.YouTubeComment.created_at.desc())\
+                .limit(200).all()
+            rules = db.query(yt_models.YouTubeReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception:
+        pass
+
+    def video_to_dict(v):
+        return {
+            "id": v.id,
+            "video_id": getattr(v, "video_id", ""),
+            "title": getattr(v, "title", "") or "",
+            "description": getattr(v, "description", "") or "",
+            "channel_title": getattr(v, "channel_title", "") or "",
+            "views": getattr(v, "views", 0),
+            "likes": getattr(v, "likes", 0),
+            "comments_count": getattr(v, "comments_count", 0),
+            "duration": getattr(v, "duration", "") or "",
+            "url": getattr(v, "url", "") or "",
+            "is_analyzed": getattr(v, "is_analyzed", False),
+            "analysis_result": getattr(v, "analysis_result", {}) or {},
+            "created_at": v.created_at.isoformat() if getattr(v, "created_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "keywords": getattr(r, "keywords", []) or [],
+            "reply_mode": getattr(r, "reply_mode", "auto"),
+            "reply_template": getattr(r, "reply_template", "") or "",
+            "replies_sent": getattr(r, "replies_sent", 0),
+        }
+
+    return templates.TemplateResponse("youtube.html", {
+        "request": request,
+        "user": user,
+        "page": "youtube",
+        "account": account,
+        "videos": videos,
+        "comments": comments,
+        "videos_json": json.dumps([video_to_dict(v) for v in videos], ensure_ascii=False),
+        "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
+    })
+
+
+# ─── GOOGLE TRENDS ────────────────────────────────────────────────────────────
+
+@router.get("/google-trends", response_class=HTMLResponse)
+def google_trends_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    trends = []
+    interest_over_time = []
+    related_queries = []
+    try:
+        from app.domains.google_trends import models as gt_models
+        trends = db.query(gt_models.TrendKeyword)\
+            .order_by(gt_models.TrendKeyword.created_at.desc())\
+            .limit(200).all()
+    except Exception:
+        pass
+
+    def trend_to_dict(t):
+        return {
+            "id": t.id,
+            "keyword": getattr(t, "keyword", ""),
+            "geo": getattr(t, "geo", "") or "",
+            "category": getattr(t, "category", "") or "",
+            "interest_score": getattr(t, "interest_score", 0),
+            "trend_direction": getattr(t, "trend_direction", "") or "",
+            "is_analyzed": getattr(t, "is_analyzed", False),
+            "analysis_result": getattr(t, "analysis_result", {}) or {},
+            "created_at": t.created_at.isoformat() if getattr(t, "created_at", None) else None,
+        }
+
+    return templates.TemplateResponse("google_trends.html", {
+        "request": request,
+        "user": user,
+        "page": "google-trends",
+        "trends": trends,
+        "trends_json": json.dumps([trend_to_dict(t) for t in trends], ensure_ascii=False),
+        "interest_over_time_json": json.dumps(interest_over_time, ensure_ascii=False),
+        "related_queries_json": json.dumps(related_queries, ensure_ascii=False),
+    })
+
+
 # ─── API Settings ───────────────────────────────────────────────────────────────
 
 @router.get("/api-settings", response_class=HTMLResponse)

@@ -839,7 +839,7 @@ def youtube_page(request: Request, db: Session = Depends(get_db)):
         "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
     })
 
-
+ 
 # ─── GOOGLE TRENDS ────────────────────────────────────────────────────────────
 
 @router.get("/google-trends", response_class=HTMLResponse)

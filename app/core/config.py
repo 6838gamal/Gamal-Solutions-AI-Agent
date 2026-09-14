@@ -1,7 +1,7 @@
 import os
 from pydantic_settings import BaseSettings
 
-_DB_URL_DEFAULT = "postgresql://gamalalmaqtary:Mxsof46L7GzfDvSI8vyAkt87zmLDzg6P@dpg-d8jrfmt7vvec73e1v6d0-a.virginia-postgres.render.com/gamal_solutions_ai_agent_db"
+_DB_URL_DEFAULT = "postgresql://gamalalmaqtary:xndaLTpmEnsMY5cyBwXyX5sRRup8ooAD@dpg-dak2e10jo6nc73b85au0-a.oregon-postgres.render.com/gamal_solutions_ai_agent_db_h3bk"
 _SECRET_KEY_DEFAULT = "gamal-solutions-enterprise-secret-key-2024-super-secure-jwt"
 
 

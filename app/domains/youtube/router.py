@@ -127,3 +127,44 @@ def youtube_stats(db: Session = Depends(get_db)):
 
     return {"videos": videos, "channels": channels, "snapshots": snapshots, "rising": rising}
 
+
+
+@router.get("/rising")
+def rising_videos(limit: int = 20, db: Session = Depends(get_db)):
+    """
+    يرجع الفيديوهات مرتبة حسب views_per_hour (يحتاج snapshot-ين على الأقل).
+    """
+    from app.domains.youtube.models import YouTubeVideo
+    from sqlalchemy import desc
+
+    videos = (
+        db.query(YouTubeVideo)
+        .order_by(desc(YouTubeVideo.created_at))
+        .limit(200)
+        .all()
+    )
+
+    results = []
+    for v in videos:
+        velocity = videos_svc.compute_velocity(db, v.id)
+        if velocity["views_per_hour"] is None:
+            continue
+        latest = videos_svc.latest_snapshot(db, v.id)
+        # breakout: views / subscribers
+        subs = v.channel.subscriber_count if v.channel else 0
+        breakout = (latest.view_count / subs) if (subs and latest) else None
+
+        results.append({
+            "id": v.id,
+            "youtube_id": v.youtube_id,
+            "title": v.title,
+            "channel_title": v.channel.title if v.channel else None,
+            "thumbnail_url": v.thumbnail_url,
+            "view_count": latest.view_count if latest else None,
+            "views_per_hour": velocity["views_per_hour"],
+            "growth_rate": velocity["growth_rate"] or 0,
+            "breakout_score": breakout,
+        })
+
+    results.sort(key=lambda x: x["views_per_hour"] or 0, reverse=True)
+    return results[:limit]

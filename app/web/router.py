@@ -18,7 +18,7 @@ from app.domains.audit import models as audit_models
 from app.domains.telegram import models as tg_models
 
 from app.domains.youtube.web import router as youtube_web_router
-router.include_router(youtube_web_router)
+
 
 import json
 import os
@@ -70,6 +70,8 @@ router = APIRouter(tags=["Web"])
 
 COOKIE_NAME = "access_token"
 
+
+router.include_router(youtube_web_router)
 
 def get_current_user_from_cookie(request: Request, db: Session) -> Optional[auth_models.User]:
     token = request.cookies.get(COOKIE_NAME)

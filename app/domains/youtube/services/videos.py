@@ -1,18 +1,27 @@
+"""
+YouTube videos service — قراءات، velocity، counters، serialization.
+"""
 from datetime import datetime, timedelta
 from typing import Optional, List
-from sqlalchemy import func, distinct
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
+
 from app.domains.youtube.models import (
-    YouTubeVideo, YouTubeChannel, VideoSnapshot
+    YouTubeVideo, YouTubeChannel, VideoSnapshot,
 )
 
 
-# ─── قراءات أساسية ─────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# قراءات أساسية
+# ══════════════════════════════════════════════════════════════════════
 
 def get_video(db: Session, video_id: int) -> Optional[YouTubeVideo]:
     return (
         db.query(YouTubeVideo)
-        .options(joinedload(YouTubeVideo.channel))
+        .options(
+            joinedload(YouTubeVideo.channel),
+            joinedload(YouTubeVideo.snapshots),
+        )
         .filter_by(id=video_id)
         .first()
     )
@@ -21,7 +30,10 @@ def get_video(db: Session, video_id: int) -> Optional[YouTubeVideo]:
 def list_videos(db: Session, limit: int = 50, offset: int = 0) -> List[YouTubeVideo]:
     return (
         db.query(YouTubeVideo)
-        .options(joinedload(YouTubeVideo.channel))
+        .options(
+            joinedload(YouTubeVideo.channel),
+            joinedload(YouTubeVideo.snapshots),
+        )
         .order_by(YouTubeVideo.published_at.desc().nullslast())
         .limit(limit)
         .offset(offset)
@@ -40,6 +52,7 @@ def get_snapshots(db: Session, video_id: int, limit: int = 200) -> List[VideoSna
 
 
 def latest_snapshot(db: Session, video_id: int) -> Optional[VideoSnapshot]:
+    """آخر snapshot من قاعدة البيانات."""
     return (
         db.query(VideoSnapshot)
         .filter_by(video_id=video_id)
@@ -48,9 +61,24 @@ def latest_snapshot(db: Session, video_id: int) -> Optional[VideoSnapshot]:
     )
 
 
-# ─── Velocity (كما هي عندك) ────────────────────────────────────────
+def latest_snapshot_for(v: YouTubeVideo) -> Optional[VideoSnapshot]:
+    """
+    آخر snapshot من العلاقة المحمّلة مسبقًا (joinedload).
+    أسرع بكثير من latest_snapshot لأنه لا يستعلم.
+    """
+    if not v.snapshots:
+        return None
+    return max(v.snapshots, key=lambda s: s.captured_at or datetime.min)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Velocity
+# ══════════════════════════════════════════════════════════════════════
 
 def compute_velocity(db: Session, video_id: int) -> dict:
+    """
+    يحسب views_per_hour و growth_rate من آخر snapshot-ين.
+    """
     snaps = (
         db.query(VideoSnapshot)
         .filter_by(video_id=video_id)
@@ -62,6 +90,9 @@ def compute_velocity(db: Session, video_id: int) -> dict:
         return {"views_per_hour": None, "growth_rate": None, "acceleration": None}
 
     curr, prev = snaps[0], snaps[1]
+    if not curr.captured_at or not prev.captured_at:
+        return {"views_per_hour": None, "growth_rate": None, "acceleration": None}
+
     dt_hours = (curr.captured_at - prev.captured_at).total_seconds() / 3600
     if dt_hours <= 0:
         return {"views_per_hour": None, "growth_rate": None, "acceleration": None}
@@ -77,19 +108,28 @@ def compute_velocity(db: Session, video_id: int) -> dict:
     }
 
 
-# ─── Serializer موحّد (مهم!) ────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# Serialization — يطابق ما يتوقعه Alpine
+# ══════════════════════════════════════════════════════════════════════
 
-def serialize_video(v: YouTubeVideo, snap: Optional[VideoSnapshot] = None,
+def serialize_video(v: YouTubeVideo,
+                    snap: Optional[VideoSnapshot] = None,
                     vel: Optional[dict] = None) -> dict:
-    """يحوّل YouTubeVideo إلى dict يطابق ما يتوقعه Alpine."""
-    snap = snap if snap is not None else latest_snapshot_for(v)
+    """
+    يحوّل YouTubeVideo إلى dict مسطّح.
+    - view/like/comment تُقرأ من آخر snapshot (لأن الفيديو لا يخزّنها).
+    - channel_title يُقرأ من العلاقة مع YouTubeChannel.
+    """
+    if snap is None:
+        snap = latest_snapshot_for(v)
+
     data = {
         "id":            v.id,
         "youtube_id":    v.youtube_id,
         "title":         v.title,
-        "description":   v.description,
+        "description":   v.description or "",
         "channel_title": v.channel.title if v.channel else None,
-        "channel_id":    v.channel.youtube_id if v.channel else None,
+        "channel_yt_id": v.channel.youtube_id if v.channel else None,
         "thumbnail_url": v.thumbnail_url,
         "published_at":  v.published_at.isoformat() if v.published_at else None,
         "duration_sec":  v.duration_sec,
@@ -98,21 +138,27 @@ def serialize_video(v: YouTubeVideo, snap: Optional[VideoSnapshot] = None,
         "like_count":    (snap.like_count if snap else 0) or 0,
         "comment_count": (snap.comment_count if snap else 0) or 0,
     }
+
     if vel:
         data["views_per_hour"] = vel.get("views_per_hour")
         data["growth_rate"]    = vel.get("growth_rate") or 0
-        data["breakout_score"] = _breakout_score(vel, data["view_count"])
+        data["breakout_score"] = _breakout_score(vel)
+
     return data
 
 
-def latest_snapshot_for(v: YouTubeVideo) -> Optional[VideoSnapshot]:
-    """يستخدم العلاقة المحمّلة مسبقًا إن وُجدت، وإلا يستعلم."""
-    if not v.snapshots:
-        return None
-    return max(v.snapshots, key=lambda s: s.captured_at or datetime.min)
+def _breakout_score(vel: dict) -> float:
+    """0–100: مزيج من vph و growth."""
+    vph = vel.get("views_per_hour") or 0
+    gr  = vel.get("growth_rate")  or 0
+    score = min(60, (vph / 1000) * 10)
+    score += min(40, gr * 800)
+    return round(score, 1)
 
 
-# ─── Counters للـ /stats ──────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# Counters للـ /stats
+# ══════════════════════════════════════════════════════════════════════
 
 def count_videos(db: Session) -> int:
     return db.query(func.count(YouTubeVideo.id)).scalar() or 0
@@ -128,7 +174,9 @@ def count_snapshots(db: Session) -> int:
 
 def count_rising(db: Session, min_velocity: float = 100.0,
                  within_hours: int = 48) -> int:
-    """عدد الفيديوهات التي vph >= min_velocity خلال آخر within_hours."""
+    """
+    عدد الفيديوهات التي views_per_hour >= min_velocity خلال آخر within_hours.
+    """
     since = datetime.utcnow() - timedelta(hours=within_hours)
     vids = (
         db.query(YouTubeVideo.id)
@@ -143,19 +191,29 @@ def count_rising(db: Session, min_velocity: float = 100.0,
     return n
 
 
-# ─── Rising list ─────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# Rising list
+# ══════════════════════════════════════════════════════════════════════
 
 def list_rising(db: Session, limit: int = 20,
-                within_hours: int = 48, min_velocity: float = 50.0) -> List[dict]:
+                within_hours: int = 48,
+                min_velocity: float = 50.0) -> List[dict]:
+    """
+    يرجع قائمة الفيديوهات الصاعدة مرتبة حسب views_per_hour.
+    """
     since = datetime.utcnow() - timedelta(hours=within_hours)
     candidates = (
         db.query(YouTubeVideo)
-        .options(joinedload(YouTubeVideo.channel), joinedload(YouTubeVideo.snapshots))
+        .options(
+            joinedload(YouTubeVideo.channel),
+            joinedload(YouTubeVideo.snapshots),
+        )
         .filter(YouTubeVideo.published_at >= since)
         .order_by(YouTubeVideo.published_at.desc())
         .limit(500)
         .all()
     )
+
     enriched = []
     for v in candidates:
         vel = compute_velocity(db, v.id)
@@ -166,12 +224,3 @@ def list_rising(db: Session, limit: int = 20,
 
     enriched.sort(key=lambda x: x.get("views_per_hour") or 0, reverse=True)
     return enriched[:limit]
-
-
-def _breakout_score(vel: dict, view_count: int) -> float:
-    """0–100: مزيج من vph و growth."""
-    vph = vel.get("views_per_hour") or 0
-    gr  = vel.get("growth_rate")  or 0
-    score = min(60, (vph / 1000) * 10)
-    score += min(40, gr * 800)
-    return round(score, 1)

@@ -105,3 +105,25 @@ def _video_to_out(v) -> VideoOut:
         like_count=latest.like_count if latest else None,
         comment_count=latest.comment_count if latest else None,
     )
+
+@router.get("/stats")
+def youtube_stats(db: Session = Depends(get_db)):
+    from app.domains.youtube.models import YouTubeChannel, YouTubeVideo, VideoSnapshot
+    from sqlalchemy import func
+    videos = db.query(func.count(YouTubeVideo.id)).scalar() or 0
+    channels = db.query(func.count(YouTubeChannel.id)).scalar() or 0
+    snapshots = db.query(func.count(VideoSnapshot.id)).scalar() or 0
+
+    # rising: فيديوهات لها snapshot-ين على الأقل في آخر 24 ساعة
+    # (مبسّط — لاحقًا نحوّله لـengine كامل)
+    from sqlalchemy import distinct
+    from datetime import datetime, timedelta
+    since = datetime.utcnow() - timedelta(hours=24)
+    rising = (
+        db.query(func.count(distinct(VideoSnapshot.video_id)))
+        .filter(VideoSnapshot.captured_at >= since)
+        .scalar() or 0
+    )
+
+    return {"videos": videos, "channels": channels, "snapshots": snapshots, "rising": rising}
+

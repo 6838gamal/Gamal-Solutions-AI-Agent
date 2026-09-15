@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
 
     # ══════════════════════════════════════════════════════════════════
+    # LLM — Gemini (عبر HTTP request)
+    # ══════════════════════════════════════════════════════════════════
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"   # أو gemini-2.0-flash-exp
+    GEMINI_API_URL: str = "https://generativelanguage.googleapis.com/v1beta/models"
+    LLM_TIMEOUT_SECONDS: int = 45
+
+    # ══════════════════════════════════════════════════════════════════
     # Properties — تُقرأ من الكود كما لو كانت حقولًا عادية
     # ══════════════════════════════════════════════════════════════════
 

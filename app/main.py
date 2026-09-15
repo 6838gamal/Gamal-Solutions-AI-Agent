@@ -113,6 +113,10 @@ def startup():
             "ALTER TABLE agents ADD COLUMN IF NOT EXISTS knowledge_domains JSONB DEFAULT '[]'",
             "ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_priority INTEGER DEFAULT 5",
             "ALTER TABLE agents ADD COLUMN IF NOT EXISTS max_context_docs INTEGER DEFAULT 5",
+            # YouTube — safety net for re-deploys
+            "ALTER TABLE youtube_videos ADD COLUMN IF NOT EXISTS query_source VARCHAR(255)",
+            "ALTER TABLE youtube_videos ADD COLUMN IF NOT EXISTS tags TEXT[]",
+            "ALTER TABLE video_snapshots ADD COLUMN IF NOT EXISTS captured_at TIMESTAMP DEFAULT NOW()",
         ]
         with engine.connect() as _conn:
             for _sql in _critical:
@@ -288,6 +292,50 @@ def startup():
                     last_used_at TIMESTAMP,
                     expires_at TIMESTAMP
                 )""",
+                # ══════════════════════════════════════════════════════
+                # YouTube Integration
+                # ══════════════════════════════════════════════════════
+                """CREATE TABLE IF NOT EXISTS youtube_channels (
+                    id BIGSERIAL PRIMARY KEY,
+                    youtube_id VARCHAR(64) UNIQUE NOT NULL,
+                    title VARCHAR(500),
+                    description TEXT,
+                    subscriber_count BIGINT DEFAULT 0,
+                    video_count INTEGER DEFAULT 0,
+                    view_count BIGINT DEFAULT 0,
+                    country VARCHAR(10),
+                    published_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )""",
+                """CREATE TABLE IF NOT EXISTS youtube_videos (
+                    id BIGSERIAL PRIMARY KEY,
+                    youtube_id VARCHAR(64) UNIQUE NOT NULL,
+                    channel_id BIGINT REFERENCES youtube_channels(id) ON DELETE CASCADE,
+                    title VARCHAR(500) NOT NULL,
+                    description TEXT,
+                    published_at TIMESTAMP,
+                    duration_sec INTEGER,
+                    category_id VARCHAR(20),
+                    tags TEXT[],
+                    thumbnail_url VARCHAR(500),
+                    query_source VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )""",
+                """CREATE TABLE IF NOT EXISTS video_snapshots (
+                    id BIGSERIAL PRIMARY KEY,
+                    video_id BIGINT REFERENCES youtube_videos(id) ON DELETE CASCADE,
+                    view_count BIGINT DEFAULT 0,
+                    like_count BIGINT DEFAULT 0,
+                    comment_count BIGINT DEFAULT 0,
+                    captured_at TIMESTAMP DEFAULT NOW()
+                )""",
+                "CREATE INDEX IF NOT EXISTS ix_youtube_channels_youtube_id ON youtube_channels(youtube_id)",
+                "CREATE INDEX IF NOT EXISTS ix_youtube_videos_youtube_id ON youtube_videos(youtube_id)",
+                "CREATE INDEX IF NOT EXISTS ix_youtube_videos_channel_published ON youtube_videos(channel_id, published_at)",
+                "CREATE INDEX IF NOT EXISTS ix_youtube_videos_query_source ON youtube_videos(query_source)",
+                "CREATE INDEX IF NOT EXISTS ix_video_snapshots_video_captured ON video_snapshots(video_id, captured_at)",
             ]
             with engine.connect() as conn:
                 for sql in migrations:
@@ -340,6 +388,23 @@ def startup():
             time.sleep(60)
 
     threading.Thread(target=telegram_auto_sync, daemon=True).start()
+
+    # ── Auto-collect YouTube data every 30 minutes ────────────────────────
+    def youtube_auto_collect():
+        # Wait for DB to be ready first
+        time.sleep(45)
+        # فحص أولي لإعدادات API
+        if not getattr(settings, "YOUTUBE_API_KEY", None):
+            print("[YouTubeCollector] ⚠️  YOUTUBE_API_KEY غير مُعرَّف — سيتم تجاهل الجمع التلقائي")
+            return
+        try:
+            from app.domains.youtube.collector import youtube_auto_collect as _collector_loop
+            _collector_loop(interval_sec=30 * 60, initial_delay=0)
+        except Exception as yt_err:
+            print(f"[YouTubeCollector] fatal: {yt_err}")
+
+    threading.Thread(target=youtube_auto_collect, daemon=True).start()
+    print(f"[Startup] YouTube collector thread scheduled (30 min interval)")
 
     # ── Keep-Alive Ping (prevents Render / free-tier sleep) ───────────────
     def _detect_app_url() -> str:

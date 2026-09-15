@@ -7,36 +7,92 @@
 
 {% block head %}
 <style>
-  .yt-tab { cursor:pointer; padding:.5rem 1.25rem; border-radius:.75rem; font-size:.875rem; font-weight:600; color:#64748b; transition:all .15s; }
-  .yt-tab.active { background:#dc2626; color:#fff; box-shadow:0 2px 8px rgba(220,38,38,.3); }
-  .yt-tab:hover:not(.active) { background:#f1f5f9; color:#991b1b; }
-  .yt-panel { display:none; }
-  .yt-panel.active { display:block; }
-  .video-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; margin-bottom:.75rem; transition:box-shadow .15s; }
-  .video-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
-  .status-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
-  .status-connected { background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.2); }
+  .yt-tab {
+    cursor: pointer;
+    padding: .5rem 1.25rem;
+    border-radius: .75rem;
+    font-size: .875rem;
+    font-weight: 600;
+    color: #64748b;
+    transition: all .15s;
+    border: none;
+    background: transparent;
+    font-family: 'Cairo', sans-serif;
+  }
+  .yt-tab.active { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220,38,38,.3); }
+  .yt-tab:hover:not(.active) { background: #f1f5f9; color: #991b1b; }
+
+  .yt-panel { display: none; }
+  .yt-panel.active { display: block; }
+
+  .video-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: .75rem;
+    transition: box-shadow .15s;
+  }
+  .video-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .status-connected    { background:#22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.2); }
   .status-disconnected { background:#94a3b8; }
-  .status-error { background:#ef4444; }
-  .badge-rising { background:#fee2e2; color:#991b1b; }
-  .badge-breakout { background:#fef3c7; color:#92400e; }
-  .badge-stable { background:#dbeafe; color:#1e40af; }
-  .metric-box { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; }
-  .spark { height:40px; }
+  .status-error        { background:#ef4444; }
+
+  .badge-rising  { background:#fee2e2; color:#991b1b; }
+  .badge-breakout{ background:#fef3c7; color:#92400e; }
+  .badge-stable  { background:#dbeafe; color:#1e40af; }
+
+  .metric-box {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+
+  /* منع الوميض قبل تهيئة Alpine */
+  [x-cloak] { display: none !important; }
+
+  /* تحسين عرض الفيديو في RTL */
+  .video-row { display: flex; gap: 1rem; }
+  @media (max-width: 640px) {
+    .video-row { flex-direction: column; }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div x-data="youtubeApp()" x-init="init()">
+<div x-data="youtubeApp()" x-init="init()" x-cloak>
 
-  <!-- ═══ Connection / API status bar ═══ -->
+  <!-- ═══ تحذير: API key غير معرَّف ═══ -->
+  {% if not api_key_set %}
+  <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-start gap-3">
+    <span class="text-2xl flex-shrink-0">⚠️</span>
+    <div class="text-sm text-amber-800">
+      <div class="font-bold mb-1">مفتاح YouTube API غير معرَّف</div>
+      <p>
+        أضِف
+        <code class="bg-white px-1.5 py-0.5 rounded text-xs">YOUTUBE_API_KEY</code>
+        في Render → Environment. البحث والجمع لن يعملا بدونه.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ═══ شريط الحالة / الاتصال ═══ -->
   <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-6 flex flex-wrap items-center gap-4">
     <div class="flex items-center gap-3">
-      <span class="status-dot" :class="{
-        'status-connected': apiStatus === 'ok',
-        'status-disconnected': apiStatus === 'unknown',
-        'status-error': apiStatus === 'error'
-      }"></span>
+      <span class="status-dot"
+            :class="{
+              'status-connected':    apiStatus === 'ok',
+              'status-disconnected': apiStatus === 'unknown',
+              'status-error':        apiStatus === 'error'
+            }"></span>
       <div>
         <div class="font-bold text-slate-800 text-sm" x-text="apiStatusLabel()"></div>
         <div class="text-xs text-slate-500" x-text="'آخر فحص: ' + (lastHealthCheck || '—')"></div>
@@ -46,10 +102,14 @@
     <div class="flex items-center gap-2 mr-auto flex-wrap">
       <template x-if="collecting">
         <span class="inline-flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-100 rounded-full px-2.5 py-1">
-          <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
           جاري جمع البيانات...
         </span>
       </template>
+
       <template x-if="!collecting && lastCollectTime">
         <span class="inline-flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-1 font-medium">
           <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -57,20 +117,24 @@
         </span>
       </template>
 
-      <button @click="runCollector()" class="btn-primary text-xs py-1.5 px-3" :disabled="collecting">
+      <button @click="runCollector()" class="btn-primary text-xs" :disabled="collecting">
         <svg class="w-4 h-4" :class="{'animate-spin': collecting}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
         </svg>
         <span x-text="collecting ? 'جاري الجمع...' : 'جمع الآن'"></span>
       </button>
-      <button @click="refreshAll()" class="btn-secondary text-xs py-1.5 px-3" :disabled="refreshing">
+
+      <button @click="refreshAll()" class="btn-secondary text-xs" :disabled="refreshing">
         <span x-text="refreshing ? 'جاري التحديث...' : '🔄 تحديث'"></span>
       </button>
     </div>
 
     <template x-if="toast">
       <div class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium"
-           :class="toastType === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'"
+           :class="toastType === 'success'
+                   ? 'bg-green-50 text-green-700 border border-green-200'
+                   : 'bg-red-50 text-red-700 border border-red-200'"
            x-text="toast"></div>
     </template>
   </div>
@@ -95,20 +159,12 @@
     </div>
   </div>
 
-  <!-- ═══ Tabs ═══ -->
+  <!-- ═══ التبويبات ═══ -->
   <div class="flex gap-2 mb-6 flex-wrap">
-    <button class="yt-tab" :class="{ active: tab === 'search' }" @click="tab='search'">
-      🔍 البحث والاستكشاف
-    </button>
-    <button class="yt-tab" :class="{ active: tab === 'tracked' }" @click="tab='tracked'; loadTracked()">
-      📚 الفيديوهات المتتبَّعة
-    </button>
-    <button class="yt-tab" :class="{ active: tab === 'rising' }" @click="tab='rising'; loadRising()">
-      🔥 الأكثر صعودًا
-    </button>
-    <button class="yt-tab" :class="{ active: tab === 'queries' }" @click="tab='queries'">
-      ⚙️ كلمات التتبع
-    </button>
+    <button class="yt-tab" :class="{ active: tab === 'search' }"  @click="switchTab('search')">🔍 البحث والاستكشاف</button>
+    <button class="yt-tab" :class="{ active: tab === 'tracked' }" @click="switchTab('tracked')">📚 الفيديوهات المتتبَّعة</button>
+    <button class="yt-tab" :class="{ active: tab === 'rising' }"  @click="switchTab('rising')">🔥 الأكثر صعودًا</button>
+    <button class="yt-tab" :class="{ active: tab === 'queries' }" @click="switchTab('queries')">⚙️ كلمات التتبع</button>
   </div>
 
   <!-- ══════════════════════════════════════════════════════ -->
@@ -116,10 +172,9 @@
   <!-- ══════════════════════════════════════════════════════ -->
   <div x-show="tab === 'search'">
 
-    <!-- Search box -->
     <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
       <h3 class="font-bold text-slate-800 mb-3">🔎 ابحث في YouTube</h3>
-      <form @submit.prevent="doSearch()" class="flex flex-wrap gap-3">
+      <form @submit.prevent="doSearch()" class="flex flex-wrap gap-3 items-end">
         <input x-model="searchQuery" type="text" placeholder="مثال: ai agents"
                class="form-input flex-1 min-w-[240px]" />
         <select x-model.number="searchMaxResults" class="form-input max-w-[140px]">
@@ -127,13 +182,14 @@
           <option :value="25">25 نتيجة</option>
           <option :value="50">50 نتيجة</option>
         </select>
-        <label class="inline-flex items-center gap-2 text-sm text-slate-600">
+        <label class="inline-flex items-center gap-2 text-sm text-slate-600 pb-2">
           <input type="checkbox" x-model="searchPersist" class="rounded" />
           حفظ النتائج في قاعدة البيانات
         </label>
         <button type="submit" class="btn-primary" :disabled="searching">
           <svg class="w-4 h-4" :class="{'animate-spin': searching}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
           </svg>
           <span x-text="searching ? 'جاري البحث...' : 'ابحث'"></span>
         </button>
@@ -145,7 +201,6 @@
       </template>
     </div>
 
-    <!-- Results -->
     <template x-if="searchResults.length > 0">
       <div>
         <div class="flex items-center justify-between mb-3">
@@ -155,12 +210,12 @@
 
         <template x-for="v in searchResults" :key="v.youtube_id">
           <div class="video-card">
-            <div class="flex gap-4">
+            <div class="video-row">
               <template x-if="v.thumbnail_url">
-                <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" />
+                <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" loading="lazy" />
               </template>
               <div class="flex-1 min-w-0">
-                <div class="font-bold text-slate-800 text-sm mb-1 line-clamp-2" x-text="v.title"></div>
+                <div class="font-bold text-slate-800 text-sm mb-1" x-text="v.title"></div>
                 <div class="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
                   <span x-text="v.channel_title || '—'"></span>
                   <span>•</span>
@@ -172,11 +227,12 @@
                     <span class="badge badge-green text-xs" x-text="'👍 ' + formatNumber(v.like_count)"></span>
                   </template>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center flex-wrap">
                   <template x-if="v.id && v.id > 0">
-                    <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs py-1 px-2.5">عرض التفاصيل</a>
+                    <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs">عرض التفاصيل</a>
                   </template>
-                  <a :href="'https://youtube.com/watch?v=' + v.youtube_id" target="_blank"
+                  <a :href="'https://youtube.com/watch?v=' + v.youtube_id"
+                     target="_blank" rel="noopener"
                      class="text-xs text-slate-500 hover:text-slate-800 py-1">فتح على YouTube ↗</a>
                 </div>
               </div>
@@ -213,7 +269,20 @@
     </div>
 
     <template x-if="loadingTracked">
-      <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">جاري التحميل...</div>
+      <div class="space-y-3">
+        <template x-for="i in 3" :key="i">
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 animate-pulse">
+            <div class="video-row">
+              <div class="w-32 h-20 bg-slate-200 rounded-lg flex-shrink-0"></div>
+              <div class="flex-1 space-y-2">
+                <div class="h-4 bg-slate-200 rounded w-3/4"></div>
+                <div class="h-3 bg-slate-200 rounded w-1/2"></div>
+                <div class="h-3 bg-slate-200 rounded w-1/3"></div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
     </template>
 
     <template x-if="!loadingTracked && filteredTracked.length === 0">
@@ -221,18 +290,18 @@
         <div class="text-6xl mb-4">📭</div>
         <h3 class="font-bold text-slate-700 text-xl mb-2">لا توجد فيديوهات متتبَّعة</h3>
         <p class="text-slate-500 mb-4">ابحث عن فيديوهات في تبويب "البحث" لحفظها هنا</p>
-        <button @click="tab='search'" class="btn-primary">اذهب للبحث</button>
+        <button @click="switchTab('search')" class="btn-primary">اذهب للبحث</button>
       </div>
     </template>
 
     <template x-for="v in filteredTracked" :key="v.id">
       <div class="video-card">
-        <div class="flex gap-4">
+        <div class="video-row">
           <template x-if="v.thumbnail_url">
-            <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" />
+            <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" loading="lazy" />
           </template>
           <div class="flex-1 min-w-0">
-            <div class="font-bold text-slate-800 text-sm mb-1 line-clamp-2" x-text="v.title"></div>
+            <div class="font-bold text-slate-800 text-sm mb-1" x-text="v.title"></div>
             <div class="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
               <span x-text="v.channel_title || '—'"></span>
               <span>•</span>
@@ -244,9 +313,10 @@
                 <span class="badge badge-gray text-xs" x-text="'من: ' + v.query_source"></span>
               </template>
             </div>
-            <div class="flex gap-2">
-              <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs py-1 px-2.5">التفاصيل والـSnapshots</a>
-              <a :href="'https://youtube.com/watch?v=' + v.youtube_id" target="_blank"
+            <div class="flex gap-2 items-center flex-wrap">
+              <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs">التفاصيل والـSnapshots</a>
+              <a :href="'https://youtube.com/watch?v=' + v.youtube_id"
+                 target="_blank" rel="noopener"
                  class="text-xs text-slate-500 hover:text-slate-800 py-1">فتح على YouTube ↗</a>
             </div>
           </div>
@@ -261,7 +331,7 @@
   <div x-show="tab === 'rising'">
 
     <div class="bg-gradient-to-l from-red-600 to-orange-500 rounded-2xl p-6 text-white mb-6">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div class="text-red-100 text-xs font-semibold uppercase tracking-widest mb-1">Rising Now</div>
           <h3 class="font-black text-2xl">🔥 الفيديوهات الصاعدة الآن</h3>
@@ -277,7 +347,9 @@
     </div>
 
     <template x-if="loadingRising">
-      <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">جاري التحليل...</div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
+        جاري التحليل...
+      </div>
     </template>
 
     <template x-if="!loadingRising && risingVideos.length === 0">
@@ -292,18 +364,19 @@
     </template>
 
     <template x-for="(v, idx) in risingVideos" :key="v.id">
-      <div class="video-card border-r-4" :class="idx === 0 ? 'border-r-red-500' : idx < 3 ? 'border-r-amber-400' : 'border-r-slate-300'">
-        <div class="flex gap-4">
+      <div class="video-card border-r-4"
+           :class="idx === 0 ? 'border-r-red-500' : idx < 3 ? 'border-r-amber-400' : 'border-r-slate-300'">
+        <div class="video-row">
           <div class="w-8 flex-shrink-0 text-center">
             <div class="text-2xl font-black"
                  :class="idx === 0 ? 'text-red-500' : idx < 3 ? 'text-amber-500' : 'text-slate-400'"
                  x-text="'#' + (idx + 1)"></div>
           </div>
           <template x-if="v.thumbnail_url">
-            <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" />
+            <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" loading="lazy" />
           </template>
           <div class="flex-1 min-w-0">
-            <div class="font-bold text-slate-800 text-sm mb-1 line-clamp-2" x-text="v.title"></div>
+            <div class="font-bold text-slate-800 text-sm mb-1" x-text="v.title"></div>
             <div class="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
               <span x-text="v.channel_title || '—'"></span>
               <span>•</span>
@@ -324,7 +397,7 @@
               </div>
             </div>
             <div class="flex gap-2 mt-3">
-              <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs py-1 px-2.5">التفاصيل</a>
+              <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs">التفاصيل</a>
             </div>
           </div>
         </div>
@@ -346,16 +419,16 @@
           في Render.
         </p>
 
-        <!-- حالة القائمة -->
         <div class="flex items-center gap-2 mb-4 flex-wrap">
           <span class="text-xs font-medium px-2 py-1 rounded-full"
-                :class="trackedQueries.length > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'"
+                :class="trackedQueries.length > 0
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'"
                 x-text="trackedQueries.length > 0
                         ? ('✅ ' + trackedQueries.length + ' كلمة مُفعَّلة')
                         : '⚠️ لا توجد كلمات مُفعَّلة'"></span>
         </div>
 
-        <!-- إذا لا توجد كلمات -->
         <template x-if="trackedQueries.length === 0">
           <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 space-y-2">
             <p class="font-bold">⚠️ لا توجد كلمات تتبع مُعرَّفة</p>
@@ -368,7 +441,6 @@
           </div>
         </template>
 
-        <!-- إذا توجد كلمات -->
         <template x-if="trackedQueries.length > 0">
           <div class="space-y-2">
             <template x-for="(q, i) in trackedQueries" :key="q">
@@ -416,7 +488,9 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Alpine.js: يُحمَّل هنا لأن base.html لا يضمّه. defer مطلوب ليعمل بعد DOM. -->
 <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+
 <script>
 function youtubeApp() {
   return {
@@ -428,6 +502,10 @@ function youtubeApp() {
     lastCollectTime: null,
     toast: null,
     toastType: 'success',
+    _toastTimer: null,
+    _healthTimer: null,
+    _statsTimer: null,
+    _lastCollect: null,
 
     // KPIs
     stats: { videos: 0, channels: 0, snapshots: 0 },
@@ -452,30 +530,75 @@ function youtubeApp() {
     risingVideos: [],
     loadingRising: false,
 
-    // Queries tab — القيمة تُمرَّر من الخادم عبر Jinja
-    trackedQueries: {{ (tracked_queries_json | default('[]', true)) | safe }},
+    // Queries tab — القيمة مُمرَّرة من الخادم عبر Jinja
+    trackedQueries: (function () {
+      try {
+        var v = {{ (tracked_queries_json or '[]') | safe }};
+        return Array.isArray(v) ? v : [];
+      } catch (e) {
+        console.warn('trackedQueries parse failed:', e);
+        return [];
+      }
+    })(),
 
     init() {
+      // استعادة التبويب من URL hash
+      var hash = location.hash.replace('#', '');
+      if (['search', 'tracked', 'rising', 'queries'].indexOf(hash) !== -1) {
+        this.tab = hash;
+      }
+
+      // تحميل مبدئي
       this.checkHealth();
       this.loadStats();
-      setInterval(() => this.checkHealth(), 60000);
-      setInterval(() => this.loadStats(), 60000);
+
+      // إذا بدأنا على تبويب يحتاج بيانات، حمّلها
+      if (this.tab === 'tracked') this.loadTracked();
+      if (this.tab === 'rising')  this.loadRising();
+
+      // polling بحماية من الخلفية
+      var self = this;
+      this._healthTimer = setInterval(function () {
+        if (!document.hidden) self.checkHealth();
+      }, 60000);
+
+      this._statsTimer = setInterval(function () {
+        if (!document.hidden) self.loadStats();
+      }, 60000);
+
+      // حفظ التبويب في URL
+      this.$watch('tab', function (v) {
+        history.replaceState(null, '', '#' + v);
+      });
+
+      // تنظيف
+      window.addEventListener('beforeunload', function () {
+        clearInterval(self._healthTimer);
+        clearInterval(self._statsTimer);
+      });
+    },
+
+    /* ─── Tabs ─── */
+    switchTab(name) {
+      this.tab = name;
+      if (name === 'tracked' && this.trackedVideos.length === 0) this.loadTracked();
+      if (name === 'rising'  && this.risingVideos.length === 0)  this.loadRising();
     },
 
     /* ─── Health ─── */
     async checkHealth() {
       try {
-        const r = await fetch('/health');
-        const d = await r.json();
+        var r = await fetch('/health', { credentials: 'same-origin' });
+        var d = await r.json();
         this.apiStatus = d.status === 'ok' ? 'ok' : 'error';
       } catch (e) {
         this.apiStatus = 'error';
       }
-      this.lastHealthCheck = new Date().toLocaleTimeString('ar-SA');
+      this.lastHealthCheck = new Date().toLocaleTimeString('ar-EG');
     },
 
     apiStatusLabel() {
-      if (this.apiStatus === 'ok') return '✅ الخادم متصل';
+      if (this.apiStatus === 'ok')    return '✅ الخادم متصل';
       if (this.apiStatus === 'error') return '❌ خطأ في الاتصال';
       return '⏳ جاري الفحص...';
     },
@@ -483,9 +606,14 @@ function youtubeApp() {
     /* ─── Stats ─── */
     async loadStats() {
       try {
-        const r = await fetch('/api/v1/youtube/stats');
-        const d = await r.json();
-        this.stats = { videos: d.videos || 0, channels: d.channels || 0, snapshots: d.snapshots || 0 };
+        var r = await fetch('/api/v1/youtube/stats', { credentials: 'same-origin' });
+        if (!r.ok) return;
+        var d = await r.json();
+        this.stats = {
+          videos:    d.videos    || 0,
+          channels:  d.channels  || 0,
+          snapshots: d.snapshots || 0,
+        };
         this.risingCount = d.rising || 0;
       } catch (e) { /* silent */ }
     },
@@ -500,19 +628,21 @@ function youtubeApp() {
       this.searchError = null;
       this.searchResults = [];
       try {
-        const url = `/api/v1/youtube/search?q=${encodeURIComponent(this.searchQuery)}&max_results=${this.searchMaxResults}&persist=${this.searchPersist}`;
-        const r = await fetch(url);
-        const data = await r.json();
+        var url = '/api/v1/youtube/search?q=' + encodeURIComponent(this.searchQuery) +
+                  '&max_results=' + this.searchMaxResults +
+                  '&persist=' + this.searchPersist;
+        var r = await fetch(url, { credentials: 'same-origin' });
+        var data = await r.json();
         if (!r.ok) {
           this.searchError = data.detail || 'فشل البحث';
         } else {
           this.searchResults = data.results || [];
-          this.lastSearchQuery = data.query;
-          this.showToast(`تم جلب ${this.searchResults.length} نتيجة`, 'success');
+          this.lastSearchQuery = data.query || this.searchQuery;
+          this.showToast('تم جلب ' + this.searchResults.length + ' نتيجة', 'success');
           this.loadStats();
         }
       } catch (e) {
-        this.searchError = e.message;
+        this.searchError = e.message || 'خطأ في الشبكة';
       } finally {
         this.searching = false;
       }
@@ -520,19 +650,37 @@ function youtubeApp() {
 
     searchFor(q) {
       this.searchQuery = q;
-      this.tab = 'search';
-      this.doSearch();
+      var self = this;
+      this.switchTab('search');
+      this.$nextTick(function () { self.doSearch(); });
     },
 
     /* ─── Collector ─── */
     async runCollector() {
+      if (this.collecting) return;
+
+      // rate limit: 30 ثانية
+      if (this._lastCollect && Date.now() - this._lastCollect < 30000) {
+        this.showToast('انتظر 30 ثانية بين عمليات الجمع', 'error');
+        return;
+      }
+      this._lastCollect = Date.now();
+
       this.collecting = true;
       try {
-        const r = await fetch('/api/v1/youtube/collect', { method: 'POST' });
-        const d = await r.json();
-        this.showToast(d.status === 'ok' ? 'تم الجمع بنجاح' : 'فشل الجمع', d.status === 'ok' ? 'success' : 'error');
-        this.lastCollectTime = new Date().toLocaleTimeString('ar-SA');
-        await this.loadStats();
+        var r = await fetch('/api/v1/youtube/collect', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        var d = await r.json();
+        var ok = d.status === 'ok';
+        this.showToast(ok ? 'تم الجمع بنجاح' : (d.detail || 'فشل الجمع'),
+                       ok ? 'success' : 'error');
+        if (ok) {
+          this.lastCollectTime = new Date().toLocaleTimeString('ar-EG');
+          await this.loadStats();
+        }
       } catch (e) {
         this.showToast('خطأ: ' + e.message, 'error');
       } finally {
@@ -545,23 +693,30 @@ function youtubeApp() {
       if (this.loadingTracked) return;
       this.loadingTracked = true;
       try {
-        const r = await fetch('/api/v1/youtube/videos?limit=100');
-        const d = await r.json();
-        this.trackedVideos = Array.isArray(d) ? d : [];
-      } catch (e) { /* silent */ }
-      finally { this.loadingTracked = false; }
+        var r = await fetch('/api/v1/youtube/videos?limit=100', { credentials: 'same-origin' });
+        if (!r.ok) { this.trackedVideos = []; return; }
+        var d = await r.json();
+        this.trackedVideos = Array.isArray(d) ? d : (d.items || d.results || []);
+      } catch (e) {
+        this.trackedVideos = [];
+      } finally {
+        this.loadingTracked = false;
+      }
     },
 
     get filteredTracked() {
-      let list = this.trackedVideos;
+      var list = this.trackedVideos.slice();
       if (this.trackedFilter) {
-        const f = this.trackedFilter.toLowerCase();
-        list = list.filter(v => (v.title || '').toLowerCase().includes(f) || (v.channel_title || '').toLowerCase().includes(f));
+        var f = this.trackedFilter.toLowerCase();
+        list = list.filter(function (v) {
+          return (v.title || '').toLowerCase().indexOf(f) !== -1 ||
+                 (v.channel_title || '').toLowerCase().indexOf(f) !== -1;
+        });
       }
       if (this.trackedSort === 'views') {
-        list = [...list].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
+        list.sort(function (a, b) { return (b.view_count || 0) - (a.view_count || 0); });
       } else if (this.trackedSort === 'velocity') {
-        list = [...list].sort((a, b) => (b.views_per_hour || 0) - (a.views_per_hour || 0));
+        list.sort(function (a, b) { return (b.views_per_hour || 0) - (a.views_per_hour || 0); });
       }
       return list;
     },
@@ -571,24 +726,29 @@ function youtubeApp() {
       if (this.loadingRising) return;
       this.loadingRising = true;
       try {
-        const r = await fetch('/api/v1/youtube/rising?limit=20');
-        const d = await r.json();
-        this.risingVideos = Array.isArray(d) ? d : (d.items || []);
+        var r = await fetch('/api/v1/youtube/rising?limit=20', { credentials: 'same-origin' });
+        if (!r.ok) { this.risingVideos = []; return; }
+        var d = await r.json();
+        this.risingVideos = Array.isArray(d) ? d : (d.items || d.results || []);
         this.risingCount = this.risingVideos.length;
-      } catch (e) { /* silent */ }
-      finally { this.loadingRising = false; }
+      } catch (e) {
+        this.risingVideos = [];
+      } finally {
+        this.loadingRising = false;
+      }
     },
 
     /* ─── Refresh all ─── */
     async refreshAll() {
       this.refreshing = true;
-      await Promise.all([
-        this.checkHealth(),
-        this.loadStats(),
-        this.tab === 'tracked' ? this.loadTracked() : Promise.resolve(),
-        this.tab === 'rising' ? this.loadRising() : Promise.resolve(),
-      ]);
-      this.refreshing = false;
+      try {
+        var tasks = [this.checkHealth(), this.loadStats()];
+        if (this.tab === 'tracked') tasks.push(this.loadTracked());
+        if (this.tab === 'rising')  tasks.push(this.loadRising());
+        await Promise.all(tasks);
+      } finally {
+        this.refreshing = false;
+      }
     },
 
     /* ─── Helpers ─── */
@@ -602,13 +762,18 @@ function youtubeApp() {
 
     formatDate(d) {
       if (!d) return '—';
-      try { return new Date(d).toLocaleDateString('ar-SA'); } catch { return d; }
+      try {
+        return new Date(d).toLocaleDateString('ar-EG', { calendar: 'gregory' });
+      } catch (e) { return d; }
     },
 
-    showToast(msg, type = 'success') {
+    showToast(msg, type) {
+      type = type || 'success';
+      clearTimeout(this._toastTimer);
       this.toast = msg;
       this.toastType = type;
-      setTimeout(() => this.toast = null, 4000);
+      var self = this;
+      this._toastTimer = setTimeout(function () { self.toast = null; }, 4000);
     },
   };
 }

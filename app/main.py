@@ -397,12 +397,19 @@ def startup():
         if not getattr(settings, "YOUTUBE_API_KEY", None):
             print("[YouTubeCollector] ⚠️  YOUTUBE_API_KEY غير مُعرَّف — سيتم تجاهل الجمع التلقائي")
             return
+        # فحص قائمة الـqueries قبل تشغيل الـcollector
+        queries = getattr(settings, "YOUTUBE_TRACKED_QUERIES", []) or []
+        if not queries:
+            print("[YouTubeCollector] ⚠️  YOUTUBE_TRACKED_QUERIES فارغ — لن يجمع أي بيانات")
+            print("[YouTubeCollector]    أضِف القائمة في Render → Environment")
+            return
+        print(f"[YouTubeCollector] {len(queries)} queries configured: {queries}")
         try:
             from app.domains.youtube.collector import youtube_auto_collect as _collector_loop
             interval_min = getattr(settings, "YOUTUBE_COLLECT_INTERVAL_MINUTES", 30)
             _collector_loop(
                 interval_sec=interval_min * 60,
-                initial_delay=interval_min * 60,   # ← أول دورة بعد 30 دقيقة (بدلًا من 0)
+                initial_delay=interval_min * 60,   # ← أول دورة بعد 30 دقيقة
             )
         except Exception as yt_err:
             print(f"[YouTubeCollector] fatal: {yt_err}")

@@ -7,6 +7,9 @@ from app.core.database import Base, engine, SessionLocal
 from app.api.v1.api import api_router
 from app.api.public.router import router as public_router
 from app.web.router import router as web_router
+
+from app.domains.youtube.api import router as youtube_api_router
+
 import os
 from datetime import datetime
 
@@ -87,6 +90,8 @@ app.include_router(public_router, prefix="/api/public/v1")
 
 # Web (HTML) routes
 app.include_router(web_router)
+
+app.include_router(youtube_api_router)
 
 
 @app.on_event("startup")

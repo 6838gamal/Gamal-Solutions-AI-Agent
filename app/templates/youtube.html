@@ -1,0 +1,588 @@
+{% extends "base.html" %}
+
+{% block title %}يوتيوب — منصة جمال{% endblock %}
+
+{% block page_title %}تكامل يوتيوب{% endblock %}
+{% block page_subtitle %}البحث وجمع البيانات وتحليل الإشارات واكتشاف الفرص{% endblock %}
+
+{% block head %}
+<style>
+  .yt-tab { cursor:pointer; padding:.5rem 1.25rem; border-radius:.75rem; font-size:.875rem; font-weight:600; color:#64748b; transition:all .15s; }
+  .yt-tab.active { background:#dc2626; color:#fff; box-shadow:0 2px 8px rgba(220,38,38,.3); }
+  .yt-tab:hover:not(.active) { background:#f1f5f9; color:#991b1b; }
+  .yt-panel { display:none; }
+  .yt-panel.active { display:block; }
+  .video-card { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; margin-bottom:.75rem; transition:box-shadow .15s; }
+  .video-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
+  .status-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .status-connected { background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.2); }
+  .status-disconnected { background:#94a3b8; }
+  .status-error { background:#ef4444; }
+  .badge-rising { background:#fee2e2; color:#991b1b; }
+  .badge-breakout { background:#fef3c7; color:#92400e; }
+  .badge-stable { background:#dbeafe; color:#1e40af; }
+  .metric-box { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; }
+  .spark { height:40px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="youtubeApp()" x-init="init()">
+
+  <!-- ═══ Connection / API status bar ═══ -->
+  <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-6 flex flex-wrap items-center gap-4">
+    <div class="flex items-center gap-3">
+      <span class="status-dot" :class="{
+        'status-connected': apiStatus === 'ok',
+        'status-disconnected': apiStatus === 'unknown',
+        'status-error': apiStatus === 'error'
+      }"></span>
+      <div>
+        <div class="font-bold text-slate-800 text-sm" x-text="apiStatusLabel()"></div>
+        <div class="text-xs text-slate-500" x-text="'آخر فحص: ' + (lastHealthCheck || '—')"></div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 mr-auto flex-wrap">
+      <template x-if="collecting">
+        <span class="inline-flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-100 rounded-full px-2.5 py-1">
+          <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          جاري جمع البيانات...
+        </span>
+      </template>
+      <template x-if="!collecting && lastCollectTime">
+        <span class="inline-flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-1 font-medium">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          آخر جمع: <span x-text="lastCollectTime"></span>
+        </span>
+      </template>
+
+      <button @click="runCollector()" class="btn-primary text-xs py-1.5 px-3" :disabled="collecting">
+        <svg class="w-4 h-4" :class="{'animate-spin': collecting}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        <span x-text="collecting ? 'جاري الجمع...' : 'جمع الآن'"></span>
+      </button>
+      <button @click="refreshAll()" class="btn-secondary text-xs py-1.5 px-3" :disabled="refreshing">
+        <span x-text="refreshing ? 'جاري التحديث...' : '🔄 تحديث'"></span>
+      </button>
+    </div>
+
+    <template x-if="toast">
+      <div class="w-full mt-2 px-4 py-2.5 rounded-xl text-sm font-medium"
+           :class="toastType === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'"
+           x-text="toast"></div>
+    </template>
+  </div>
+
+  <!-- ═══ KPI strip ═══ -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    <div class="metric-box">
+      <div class="text-xs text-slate-500">فيديوهات متتبَّعة</div>
+      <div class="text-2xl font-black text-slate-800" x-text="stats.videos || 0"></div>
+    </div>
+    <div class="metric-box">
+      <div class="text-xs text-slate-500">قنوات</div>
+      <div class="text-2xl font-black text-slate-800" x-text="stats.channels || 0"></div>
+    </div>
+    <div class="metric-box">
+      <div class="text-xs text-slate-500">Snapshots</div>
+      <div class="text-2xl font-black text-slate-800" x-text="stats.snapshots || 0"></div>
+    </div>
+    <div class="metric-box">
+      <div class="text-xs text-slate-500">صاعدة الآن 🔥</div>
+      <div class="text-2xl font-black text-red-600" x-text="risingCount || 0"></div>
+    </div>
+  </div>
+
+  <!-- ═══ Tabs ═══ -->
+  <div class="flex gap-2 mb-6 flex-wrap">
+    <button class="yt-tab" :class="{ active: tab === 'search' }" @click="tab='search'">
+      🔍 البحث والاستكشاف
+    </button>
+    <button class="yt-tab" :class="{ active: tab === 'tracked' }" @click="tab='tracked'; loadTracked()">
+      📚 الفيديوهات المتتبَّعة
+    </button>
+    <button class="yt-tab" :class="{ active: tab === 'rising' }" @click="tab='rising'; loadRising()">
+      🔥 الأكثر صعودًا
+    </button>
+    <button class="yt-tab" :class="{ active: tab === 'queries' }" @click="tab='queries'">
+      ⚙️ كلمات التتبع
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- TAB 1: SEARCH -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div x-show="tab === 'search'">
+
+    <!-- Search box -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      <h3 class="font-bold text-slate-800 mb-3">🔎 ابحث في YouTube</h3>
+      <form @submit.prevent="doSearch()" class="flex flex-wrap gap-3">
+        <input x-model="searchQuery" type="text" placeholder="مثال: ai agents"
+               class="form-input flex-1 min-w-[240px]" />
+        <select x-model.number="searchMaxResults" class="form-input max-w-[140px]">
+          <option :value="10">10 نتائج</option>
+          <option :value="25">25 نتيجة</option>
+          <option :value="50">50 نتيجة</option>
+        </select>
+        <label class="inline-flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" x-model="searchPersist" class="rounded" />
+          حفظ النتائج في قاعدة البيانات
+        </label>
+        <button type="submit" class="btn-primary" :disabled="searching">
+          <svg class="w-4 h-4" :class="{'animate-spin': searching}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <span x-text="searching ? 'جاري البحث...' : 'ابحث'"></span>
+        </button>
+      </form>
+
+      <template x-if="searchError">
+        <div class="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 font-medium"
+             x-text="'⚠️ ' + searchError"></div>
+      </template>
+    </div>
+
+    <!-- Results -->
+    <template x-if="searchResults.length > 0">
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-slate-800" x-text="'النتائج (' + searchResults.length + ')'"></h3>
+          <span class="text-xs text-slate-500" x-text="'للبحث: ' + lastSearchQuery"></span>
+        </div>
+
+        <template x-for="v in searchResults" :key="v.youtube_id">
+          <div class="video-card">
+            <div class="flex gap-4">
+              <template x-if="v.thumbnail_url">
+                <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" />
+              </template>
+              <div class="flex-1 min-w-0">
+                <div class="font-bold text-slate-800 text-sm mb-1 line-clamp-2" x-text="v.title"></div>
+                <div class="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
+                  <span x-text="v.channel_title || '—'"></span>
+                  <span>•</span>
+                  <span x-text="formatDate(v.published_at)"></span>
+                  <template x-if="v.view_count">
+                    <span class="badge badge-blue text-xs" x-text="formatNumber(v.view_count) + ' مشاهدة'"></span>
+                  </template>
+                  <template x-if="v.like_count">
+                    <span class="badge badge-green text-xs" x-text="'👍 ' + formatNumber(v.like_count)"></span>
+                  </template>
+                </div>
+                <div class="flex gap-2">
+                  <template x-if="v.id && v.id > 0">
+                    <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs py-1 px-2.5">عرض التفاصيل</a>
+                  </template>
+                  <a :href="'https://youtube.com/watch?v=' + v.youtube_id" target="_blank"
+                     class="text-xs text-slate-500 hover:text-slate-800 py-1">فتح على YouTube ↗</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <template x-if="!searching && !searchResults.length && !searchError">
+      <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-16 text-center">
+        <div class="text-6xl mb-4">🔍</div>
+        <h3 class="font-bold text-slate-700 text-xl mb-2">ابدأ بالبحث</h3>
+        <p class="text-slate-500">اكتب كلمة مفتاحية للبحث في YouTube</p>
+      </div>
+    </template>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- TAB 2: TRACKED VIDEOS -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div x-show="tab === 'tracked'">
+
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 flex flex-wrap gap-3 items-center">
+      <input x-model="trackedFilter" type="text" placeholder="بحث في العناوين..." class="form-input max-w-xs" />
+      <select x-model="trackedSort" class="form-input max-w-[180px]">
+        <option value="recent">الأحدث نشرًا</option>
+        <option value="views">الأكثر مشاهدة</option>
+        <option value="velocity">الأسرع نموًا</option>
+      </select>
+      <div class="mr-auto text-sm text-slate-500">
+        <span x-text="filteredTracked.length"></span> فيديو
+      </div>
+    </div>
+
+    <template x-if="loadingTracked">
+      <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">جاري التحميل...</div>
+    </template>
+
+    <template x-if="!loadingTracked && filteredTracked.length === 0">
+      <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-16 text-center">
+        <div class="text-6xl mb-4">📭</div>
+        <h3 class="font-bold text-slate-700 text-xl mb-2">لا توجد فيديوهات متتبَّعة</h3>
+        <p class="text-slate-500 mb-4">ابحث عن فيديوهات في تبويب "البحث" لحفظها هنا</p>
+        <button @click="tab='search'" class="btn-primary">اذهب للبحث</button>
+      </div>
+    </template>
+
+    <template x-for="v in filteredTracked" :key="v.id">
+      <div class="video-card">
+        <div class="flex gap-4">
+          <template x-if="v.thumbnail_url">
+            <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" />
+          </template>
+          <div class="flex-1 min-w-0">
+            <div class="font-bold text-slate-800 text-sm mb-1 line-clamp-2" x-text="v.title"></div>
+            <div class="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
+              <span x-text="v.channel_title || '—'"></span>
+              <span>•</span>
+              <span x-text="formatDate(v.published_at)"></span>
+              <template x-if="v.view_count">
+                <span class="badge badge-blue text-xs" x-text="formatNumber(v.view_count) + ' مشاهدة'"></span>
+              </template>
+              <template x-if="v.query_source">
+                <span class="badge badge-gray text-xs" x-text="'من: ' + v.query_source"></span>
+              </template>
+            </div>
+            <div class="flex gap-2">
+              <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs py-1 px-2.5">التفاصيل والـSnapshots</a>
+              <a :href="'https://youtube.com/watch?v=' + v.youtube_id" target="_blank"
+                 class="text-xs text-slate-500 hover:text-slate-800 py-1">فتح على YouTube ↗</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- TAB 3: RISING NOW -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div x-show="tab === 'rising'">
+
+    <div class="bg-gradient-to-l from-red-600 to-orange-500 rounded-2xl p-6 text-white mb-6">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-red-100 text-xs font-semibold uppercase tracking-widest mb-1">Rising Now</div>
+          <h3 class="font-black text-2xl">🔥 الفيديوهات الصاعدة الآن</h3>
+          <p class="text-red-100 text-sm mt-1">
+            مرتبة حسب السرعة (views/hour) — تحتاج snapshot-ين على الأقل لكل فيديو
+          </p>
+        </div>
+        <div class="bg-white/20 rounded-xl px-5 py-3 text-center">
+          <div class="text-3xl font-black" x-text="risingCount || 0"></div>
+          <div class="text-red-100 text-xs mt-1">فيديو صاعد</div>
+        </div>
+      </div>
+    </div>
+
+    <template x-if="loadingRising">
+      <div class="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">جاري التحليل...</div>
+    </template>
+
+    <template x-if="!loadingRising && risingVideos.length === 0">
+      <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-16 text-center">
+        <div class="text-6xl mb-4">⏳</div>
+        <h3 class="font-bold text-slate-700 text-xl mb-2">لا توجد بيانات كافية بعد</h3>
+        <p class="text-slate-500 mb-4">
+          يحتاج كل فيديو snapshot-ين على الأقل لحساب السرعة. شغّل الـcollector عدة مرات.
+        </p>
+        <button @click="runCollector()" class="btn-primary">جمع الآن</button>
+      </div>
+    </template>
+
+    <template x-for="(v, idx) in risingVideos" :key="v.id">
+      <div class="video-card border-r-4" :class="idx === 0 ? 'border-r-red-500' : idx < 3 ? 'border-r-amber-400' : 'border-r-slate-300'">
+        <div class="flex gap-4">
+          <div class="w-8 flex-shrink-0 text-center">
+            <div class="text-2xl font-black"
+                 :class="idx === 0 ? 'text-red-500' : idx < 3 ? 'text-amber-500' : 'text-slate-400'"
+                 x-text="'#' + (idx + 1)"></div>
+          </div>
+          <template x-if="v.thumbnail_url">
+            <img :src="v.thumbnail_url" class="w-32 h-20 object-cover rounded-lg flex-shrink-0" />
+          </template>
+          <div class="flex-1 min-w-0">
+            <div class="font-bold text-slate-800 text-sm mb-1 line-clamp-2" x-text="v.title"></div>
+            <div class="flex items-center gap-2 text-xs text-slate-500 mb-2 flex-wrap">
+              <span x-text="v.channel_title || '—'"></span>
+              <span>•</span>
+              <span x-text="formatNumber(v.view_count) + ' مشاهدة'"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mt-3">
+              <div class="bg-red-50 rounded-lg p-2">
+                <div class="text-xs text-red-600">views/hour</div>
+                <div class="font-black text-red-700" x-text="formatNumber(v.views_per_hour)"></div>
+              </div>
+              <div class="bg-amber-50 rounded-lg p-2">
+                <div class="text-xs text-amber-600">growth rate</div>
+                <div class="font-black text-amber-700" x-text="(v.growth_rate * 100).toFixed(1) + '%'"></div>
+              </div>
+              <div class="bg-blue-50 rounded-lg p-2">
+                <div class="text-xs text-blue-600">breakout</div>
+                <div class="font-black text-blue-700" x-text="v.breakout_score ? v.breakout_score.toFixed(1) : '—'"></div>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-3">
+              <a :href="'/youtube/video/' + v.id" class="btn-secondary text-xs py-1 px-2.5">التفاصيل</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- TAB 4: TRACKED QUERIES -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <div x-show="tab === 'queries'">
+    <div class="max-w-2xl mx-auto">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
+        <h3 class="font-bold text-slate-800 mb-2">⚙️ كلمات التتبع التلقائي</h3>
+        <p class="text-sm text-slate-500 mb-4">
+          الـcollector يعمل تلقائيًا كل 30 دقيقة على هذه الكلمات. أضفها في
+          <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">.env</code> كـ
+          <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">YOUTUBE_TRACKED_QUERIES</code>
+        </p>
+
+        <template x-if="trackedQueries.length === 0">
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+            لا توجد كلمات تتبع مُعرَّفة بعد. أضفها في متغيرات البيئة.
+          </div>
+        </template>
+
+        <div class="space-y-2">
+          <template x-for="q in trackedQueries" :key="q">
+            <div class="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
+              <span class="font-medium text-slate-700" x-text="q"></span>
+              <button @click="searchFor(q)" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                ابحث الآن →
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+        <div class="flex gap-3 items-start">
+          <div class="text-blue-500 flex-shrink-0 mt-0.5">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <div class="text-sm text-blue-800 space-y-1">
+            <p class="font-bold">كيف يعمل الـCollector؟</p>
+            <p>• كل 30 دقيقة يبحث في هذه الكلمات على YouTube</p>
+            <p>• يخزّن الفيديوهات + القنوات + snapshot أولي</p>
+            <p>• يحدّث الـsnapshots للفيديوهات الحديثة (آخر 48 ساعة)</p>
+            <p>• بعد ساعتين من التشغيل ستحصل على بيانات كافية للـvelocity</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+<script>
+function youtubeApp() {
+  return {
+    tab: 'search',
+    apiStatus: 'unknown',
+    lastHealthCheck: null,
+    collecting: false,
+    refreshing: false,
+    lastCollectTime: null,
+    toast: null,
+    toastType: 'success',
+
+    // KPIs
+    stats: { videos: 0, channels: 0, snapshots: 0 },
+    risingCount: 0,
+
+    // Search tab
+    searchQuery: 'ai agents',
+    searchMaxResults: 25,
+    searchPersist: true,
+    searching: false,
+    searchResults: [],
+    lastSearchQuery: '',
+    searchError: null,
+
+    // Tracked tab
+    trackedVideos: [],
+    trackedFilter: '',
+    trackedSort: 'recent',
+    loadingTracked: false,
+
+    // Rising tab
+    risingVideos: [],
+    loadingRising: false,
+
+    // Queries tab
+    trackedQueries: {{ tracked_queries_json|safe if tracked_queries_json else '[]' }},
+
+    init() {
+      this.checkHealth();
+      this.loadStats();
+      // فحص دوري كل دقيقة
+      setInterval(() => this.checkHealth(), 60000);
+      setInterval(() => this.loadStats(), 60000);
+    },
+
+    /* ─── Health ─── */
+    async checkHealth() {
+      try {
+        const r = await fetch('/health');
+        const d = await r.json();
+        this.apiStatus = d.status === 'ok' ? 'ok' : 'error';
+      } catch (e) {
+        this.apiStatus = 'error';
+      }
+      this.lastHealthCheck = new Date().toLocaleTimeString('ar-SA');
+    },
+
+    apiStatusLabel() {
+      if (this.apiStatus === 'ok') return '✅ الخادم متصل';
+      if (this.apiStatus === 'error') return '❌ خطأ في الاتصال';
+      return '⏳ جاري الفحص...';
+    },
+
+    /* ─── Stats ─── */
+    async loadStats() {
+      try {
+        const r = await fetch('/api/v1/youtube/stats');
+        const d = await r.json();
+        this.stats = { videos: d.videos || 0, channels: d.channels || 0, snapshots: d.snapshots || 0 };
+        this.risingCount = d.rising || 0;
+      } catch (e) { /* silent */ }
+    },
+
+    /* ─── Search ─── */
+    async doSearch() {
+      if (!this.searchQuery || this.searchQuery.length < 2) {
+        this.searchError = 'أدخل كلمة مفتاحية (حرفين على الأقل)';
+        return;
+      }
+      this.searching = true;
+      this.searchError = null;
+      this.searchResults = [];
+      try {
+        const url = `/api/v1/youtube/search?q=${encodeURIComponent(this.searchQuery)}&max_results=${this.searchMaxResults}&persist=${this.searchPersist}`;
+        const r = await fetch(url);
+        const data = await r.json();
+        if (!r.ok) {
+          this.searchError = data.detail || 'فشل البحث';
+        } else {
+          this.searchResults = data.results || [];
+          this.lastSearchQuery = data.query;
+          this.showToast(`تم جلب ${this.searchResults.length} نتيجة`, 'success');
+          this.loadStats();
+        }
+      } catch (e) {
+        this.searchError = e.message;
+      } finally {
+        this.searching = false;
+      }
+    },
+
+    searchFor(q) {
+      this.searchQuery = q;
+      this.tab = 'search';
+      this.doSearch();
+    },
+
+    /* ─── Collector ─── */
+    async runCollector() {
+      this.collecting = true;
+      try {
+        const r = await fetch('/api/v1/youtube/collect', { method: 'POST' });
+        const d = await r.json();
+        this.showToast(d.status === 'ok' ? 'تم الجمع بنجاح' : 'فشل الجمع', d.status === 'ok' ? 'success' : 'error');
+        this.lastCollectTime = new Date().toLocaleTimeString('ar-SA');
+        await this.loadStats();
+      } catch (e) {
+        this.showToast('خطأ: ' + e.message, 'error');
+      } finally {
+        this.collecting = false;
+      }
+    },
+
+    /* ─── Tracked videos ─── */
+    async loadTracked() {
+      if (this.loadingTracked) return;
+      this.loadingTracked = true;
+      try {
+        const r = await fetch('/api/v1/youtube/videos?limit=100');
+        const d = await r.json();
+        this.trackedVideos = Array.isArray(d) ? d : [];
+      } catch (e) { /* silent */ }
+      finally { this.loadingTracked = false; }
+    },
+
+    get filteredTracked() {
+      let list = this.trackedVideos;
+      if (this.trackedFilter) {
+        const f = this.trackedFilter.toLowerCase();
+        list = list.filter(v => (v.title || '').toLowerCase().includes(f) || (v.channel_title || '').toLowerCase().includes(f));
+      }
+      if (this.trackedSort === 'views') {
+        list = [...list].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
+      } else if (this.trackedSort === 'velocity') {
+        list = [...list].sort((a, b) => (b.views_per_hour || 0) - (a.views_per_hour || 0));
+      }
+      return list;
+    },
+
+    /* ─── Rising ─── */
+    async loadRising() {
+      if (this.loadingRising) return;
+      this.loadingRising = true;
+      try {
+        const r = await fetch('/api/v1/youtube/rising?limit=20');
+        const d = await r.json();
+        this.risingVideos = Array.isArray(d) ? d : (d.items || []);
+        this.risingCount = this.risingVideos.length;
+      } catch (e) { /* silent */ }
+      finally { this.loadingRising = false; }
+    },
+
+    /* ─── Refresh all ─── */
+    async refreshAll() {
+      this.refreshing = true;
+      await Promise.all([
+        this.checkHealth(),
+        this.loadStats(),
+        this.tab === 'tracked' ? this.loadTracked() : Promise.resolve(),
+        this.tab === 'rising' ? this.loadRising() : Promise.resolve(),
+      ]);
+      this.refreshing = false;
+    },
+
+    /* ─── Helpers ─── */
+    formatNumber(n) {
+      if (n == null) return '—';
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toString();
+    },
+
+    formatDate(d) {
+      if (!d) return '—';
+      try { return new Date(d).toLocaleDateString('ar-SA'); } catch { return d; }
+    },
+
+    showToast(msg, type = 'success') {
+      this.toast = msg;
+      this.toastType = type;
+      setTimeout(() => this.toast = null, 4000);
+    },
+  };
+}
+</script>
+{% endblock %}

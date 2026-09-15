@@ -19,6 +19,10 @@ from app.core.config import settings
 MIN_INTERVAL_MINUTES = 25
 
 
+# ══════════════════════════════════════════════════════════════════════
+# refresh snapshots
+# ══════════════════════════════════════════════════════════════════════
+
 def _refresh_snapshots_for_recent(db, hours: int = 48, limit: int = 100):
     """
     يحدّث الـsnapshots للفيديوهات الحديثة (آخر 48 ساعة).
@@ -32,7 +36,6 @@ def _refresh_snapshots_for_recent(db, hours: int = 48, limit: int = 100):
 
     cutoff = datetime.utcnow() - timedelta(minutes=MIN_INTERVAL_MINUTES)
 
-    # آخر N فيديو من قاعدة البيانات
     videos = (
         db.query(YouTubeVideo)
         .order_by(desc(YouTubeVideo.created_at))
@@ -42,7 +45,6 @@ def _refresh_snapshots_for_recent(db, hours: int = 48, limit: int = 100):
     if not videos:
         return 0
 
-    # فلترة: احتفظ فقط بالفيديوهات التي آخر snapshot لها قديم بما يكفي
     video_ids_to_refresh: list[str] = []
     id_to_video: dict[str, YouTubeVideo] = {}
 
@@ -61,7 +63,6 @@ def _refresh_snapshots_for_recent(db, hours: int = 48, limit: int = 100):
         print(f"[YouTubeCollector] no videos need refresh (all snapshots fresh < {MIN_INTERVAL_MINUTES}min)")
         return 0
 
-    # جمّعهم في batches من 50
     client = YouTubeClient()
     added = 0
     for i in range(0, len(video_ids_to_refresh), 50):
@@ -90,6 +91,10 @@ def _refresh_snapshots_for_recent(db, hours: int = 48, limit: int = 100):
     return added
 
 
+# ══════════════════════════════════════════════════════════════════════
+# run_collection_once — للـthread
+# ══════════════════════════════════════════════════════════════════════
+
 def run_collection_once():
     db = SessionLocal()
     try:
@@ -97,13 +102,11 @@ def run_collection_once():
         max_results = getattr(settings, "YOUTUBE_MAX_RESULTS_PER_QUERY", 25)
         snapshot_limit = getattr(settings, "YOUTUBE_SNAPSHOT_REFRESH_LIMIT", 100)
 
-        # فحص القائمة الفارغة
         if not queries:
             print("[YouTubeCollector] no queries configured — nothing to collect")
             print("[YouTubeCollector]    set YOUTUBE_TRACKED_QUERIES in Render → Environment")
             return
 
-        # فحص الـAPI key
         if not getattr(settings, "YOUTUBE_API_KEY", None):
             print("[YouTubeCollector] YOUTUBE_API_KEY not set — nothing to collect")
             return
@@ -122,6 +125,74 @@ def run_collection_once():
     finally:
         db.close()
 
+
+# ══════════════════════════════════════════════════════════════════════
+# collect_all — يستدعيه Alpine عند الضغط على "جمع الآن"
+# ══════════════════════════════════════════════════════════════════════
+
+def collect_all(db, queries: list[str]) -> dict:
+    """
+    نسخة متزامنة (synchronous) من run_collection_once.
+    ترجع dict بدل الطباعة — لأن Alpine يحتاج JSON.
+
+    تستقبل db من caller (FastAPI Depends) بدل إنشاء session جديدة.
+    """
+    if not queries:
+        return {
+            "status": "skipped",
+            "reason": "no_queries",
+            "queries": 0, "new_videos": 0,
+            "updated": 0, "snapshots": 0, "errors": [],
+        }
+
+    if not getattr(settings, "YOUTUBE_API_KEY", None):
+        return {
+            "status": "skipped",
+            "reason": "no_api_key",
+            "queries": 0, "new_videos": 0,
+            "updated": 0, "snapshots": 0, "errors": [],
+        }
+
+    total_new = 0
+    total_updated = 0
+    total_snapshots = 0
+    errors: list[dict] = []
+    max_results = getattr(settings, "YOUTUBE_MAX_RESULTS_PER_QUERY", 25)
+
+    for q in queries:
+        try:
+            before = db.query(YouTubeVideo).count()
+            stored = search_and_store(db, q=q, max_results=max_results)
+            after = db.query(YouTubeVideo).count()
+
+            new = max(after - before, 0)
+            total_new += new
+            total_updated += max(len(stored) - new, 0)
+            total_snapshots += len(stored)
+        except Exception as e:
+            errors.append({"query": q, "error": str(e)})
+
+    try:
+        refreshed = _refresh_snapshots_for_recent(
+            db, hours=48, limit=getattr(settings, "YOUTUBE_SNAPSHOT_REFRESH_LIMIT", 100)
+        )
+        total_snapshots += refreshed
+    except Exception as e:
+        errors.append({"query": "__refresh__", "error": str(e)})
+
+    return {
+        "status":        "ok",
+        "queries":       len(queries),
+        "new_videos":    total_new,
+        "updated":       total_updated,
+        "snapshots":     total_snapshots,
+        "errors":        errors,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# youtube_auto_collect — thread target
+# ══════════════════════════════════════════════════════════════════════
 
 def youtube_auto_collect(interval_sec: int = 30 * 60, initial_delay: int = 30 * 60):
     """

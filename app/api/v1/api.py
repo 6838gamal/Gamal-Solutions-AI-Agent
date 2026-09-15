@@ -12,6 +12,8 @@ from app.domains.telegram.router import router as telegram_router
 from app.domains.api_keys.router import router as api_keys_router
 from app.domains.orchestration.router import router as orchestration_router
 
+from app.domains.youtube.router import router as youtube_router
+
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(agents_router)
@@ -25,3 +27,5 @@ api_router.include_router(analytics_router)
 api_router.include_router(telegram_router)
 api_router.include_router(api_keys_router)
 api_router.include_router(orchestration_router)
+
+api_router.include_router(youtube_router)

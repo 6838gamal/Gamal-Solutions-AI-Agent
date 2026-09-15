@@ -420,7 +420,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+<script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
 <script>
 function youtubeApp() {
   return {
@@ -456,14 +456,13 @@ function youtubeApp() {
     risingVideos: [],
     loadingRising: false,
 
-    // Queries tab
-    trackedQueries: {{ tracked_queries_json|safe if tracked_queries_json else '[]' }},
-    apiKeySet: {{ 'true' if api_key_set else 'false' }},
+    // Queries tab — القيم تُمرَّر من الخادم عبر Jinja
+    trackedQueries: {{ (tracked_queries_json | default('[]', true)) | safe }},
+    apiKeySet: {% if api_key_set %}true{% else %}false{% endif %},
 
     init() {
       this.checkHealth();
       this.loadStats();
-      // فحص دوري كل دقيقة
       setInterval(() => this.checkHealth(), 60000);
       setInterval(() => this.loadStats(), 60000);
     },

@@ -1,6 +1,7 @@
 import os
-from pydantic_settings import BaseSettings
+from typing import Annotated
 from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode
 
 _DB_URL_DEFAULT = "postgresql://gamalalmaqtary:xndaLTpmEnsMY5cyBwXyX5sRRup8ooAD@dpg-dak2e10jo6nc73b85au0-a.oregon-postgres.render.com/gamal_solutions_ai_agent_db_h3bk"
 _SECRET_KEY_DEFAULT = "gamal-solutions-enterprise-secret-key-2024-super-secure-jwt"
@@ -18,24 +19,23 @@ class Settings(BaseSettings):
     BACKEND_PORT: int = 5000
     ENVIRONMENT: str = "production"
 
-    BACKEND_CORS_ORIGINS: list[str] = ["*"]
+    # ⚠️ NoDecode: يمنع pydantic-settings من محاولة تحليل القيمة كـJSON
+    # نتعامل مع التحليل بأنفسنا في field_validator
+    BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = ["*"]
 
     # ══════════════════════════════════════════════════════════════════
     # YouTube Integration
     # ══════════════════════════════════════════════════════════════════
     YOUTUBE_API_KEY: str = ""
 
-    # ⚠️ فارغ افتراضيًا — يُملأ من متغيرات البيئة فقط.
+    # ⚠️ فارغ افتراضيًا — يُملأ من متغيرات البيئة
     #
-    # في Render → Environment → YOUTUBE_TRACKED_QUERIES:
-    #   الصيغة الموصى بها (CSV):
-    #     ai agents,ai voice cloning,local ai models,ai automation
+    # الصيغة الموصى بها (CSV):
+    #   YOUTUBE_TRACKED_QUERIES=ai agents,ai voice cloning,local ai models
     #
-    #   الصيغة البديلة (JSON):
-    #     ["ai agents","ai voice cloning","local ai models"]
-    #
-    # لو بقي فارغًا، الـcollector لن يجمع شيئًا.
-    YOUTUBE_TRACKED_QUERIES: list[str] = []
+    # الصيغة البديلة (JSON):
+    #   YOUTUBE_TRACKED_QUERIES=["ai agents","ai voice cloning"]
+    YOUTUBE_TRACKED_QUERIES: Annotated[list[str], NoDecode] = []
 
     YOUTUBE_MAX_RESULTS_PER_QUERY: int = 25
     YOUTUBE_COLLECT_INTERVAL_MINUTES: int = 30
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
 
     # ──────────────────────────────────────────────────────────────────
-    # Validators — دعم CSV و JSON معًا
+    # Validators
     # ──────────────────────────────────────────────────────────────────
 
     @field_validator("YOUTUBE_TRACKED_QUERIES", mode="before")

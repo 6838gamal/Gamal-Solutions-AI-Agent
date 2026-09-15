@@ -399,7 +399,11 @@ def startup():
             return
         try:
             from app.domains.youtube.collector import youtube_auto_collect as _collector_loop
-            _collector_loop(interval_sec=30 * 60, initial_delay=0)
+            interval_min = getattr(settings, "YOUTUBE_COLLECT_INTERVAL_MINUTES", 30)
+            _collector_loop(
+                interval_sec=interval_min * 60,
+                initial_delay=interval_min * 60,   # ← أول دورة بعد 30 دقيقة (بدلًا من 0)
+            )
         except Exception as yt_err:
             print(f"[YouTubeCollector] fatal: {yt_err}")
 

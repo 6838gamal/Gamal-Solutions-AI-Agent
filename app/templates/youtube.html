@@ -340,27 +340,55 @@
       <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
         <h3 class="font-bold text-slate-800 mb-2">⚙️ كلمات التتبع التلقائي</h3>
         <p class="text-sm text-slate-500 mb-4">
-          الـcollector يعمل تلقائيًا كل 30 دقيقة على هذه الكلمات. أضفها في
-          <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">.env</code> كـ
-          <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">YOUTUBE_TRACKED_QUERIES</code>
+          الـcollector يعمل تلقائيًا كل 30 دقيقة على هذه الكلمات.
+          القائمة تُقرأ من متغير البيئة
+          <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">YOUTUBE_TRACKED_QUERIES_RAW</code>
+          في Render.
         </p>
 
+        <!-- حالة القائمة -->
+        <div class="flex items-center gap-2 mb-4 flex-wrap">
+          <span class="text-xs font-medium px-2 py-1 rounded-full"
+                :class="trackedQueries.length > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'"
+                x-text="trackedQueries.length > 0
+                        ? ('✅ ' + trackedQueries.length + ' كلمة مُفعَّلة')
+                        : '⚠️ لا توجد كلمات مُفعَّلة'"></span>
+
+          <span class="text-xs font-medium px-2 py-1 rounded-full"
+                :class="apiKeySet ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'"
+                x-text="apiKeySet ? '🔑 مفتاح YouTube مُعرَّف' : '❌ مفتاح YouTube غير مُعرَّف'"></span>
+        </div>
+
+        <!-- إذا لا توجد كلمات -->
         <template x-if="trackedQueries.length === 0">
-          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-            لا توجد كلمات تتبع مُعرَّفة بعد. أضفها في متغيرات البيئة.
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 space-y-2">
+            <p class="font-bold">⚠️ لا توجد كلمات تتبع مُعرَّفة</p>
+            <p>أضِف القائمة في <strong>Render → Environment</strong> بمتغير جديد:</p>
+            <div class="bg-white border border-amber-200 rounded-lg p-3 font-mono text-xs text-slate-700 space-y-1">
+              <div><strong>Key:</strong> <code>YOUTUBE_TRACKED_QUERIES_RAW</code></div>
+              <div><strong>Value:</strong> <code>ai agents,ai voice cloning,local ai models</code></div>
+            </div>
+            <p class="text-xs">ثم اضغط Save — Render سيعيد النشر تلقائيًا.</p>
           </div>
         </template>
 
-        <div class="space-y-2">
-          <template x-for="q in trackedQueries" :key="q">
-            <div class="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
-              <span class="font-medium text-slate-700" x-text="q"></span>
-              <button @click="searchFor(q)" class="text-xs text-blue-600 hover:text-blue-800 font-medium">
-                ابحث الآن →
-              </button>
-            </div>
-          </template>
-        </div>
+        <!-- إذا توجد كلمات -->
+        <template x-if="trackedQueries.length > 0">
+          <div class="space-y-2">
+            <template x-for="(q, i) in trackedQueries" :key="q">
+              <div class="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-xs font-bold text-slate-400 w-6 text-center" x-text="(i + 1)"></span>
+                  <span class="font-medium text-slate-700 truncate" x-text="q"></span>
+                </div>
+                <button @click="searchFor(q)"
+                        class="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap">
+                  ابحث الآن →
+                </button>
+              </div>
+            </template>
+          </div>
+        </template>
       </div>
 
       <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4">
@@ -377,6 +405,11 @@
             <p>• يخزّن الفيديوهات + القنوات + snapshot أولي</p>
             <p>• يحدّث الـsnapshots للفيديوهات الحديثة (آخر 48 ساعة)</p>
             <p>• بعد ساعتين من التشغيل ستحصل على بيانات كافية للـvelocity</p>
+            <p class="pt-2 text-xs">
+              <strong>ملاحظة:</strong> لتغيير القائمة، عدّل
+              <code class="bg-white px-1 py-0.5 rounded">YOUTUBE_TRACKED_QUERIES_RAW</code>
+              في Render، ثم أعد النشر.
+            </p>
           </div>
         </div>
       </div>
@@ -425,6 +458,7 @@ function youtubeApp() {
 
     // Queries tab
     trackedQueries: {{ tracked_queries_json|safe if tracked_queries_json else '[]' }},
+    apiKeySet: {{ 'true' if api_key_set else 'false' }},
 
     init() {
       this.checkHealth();

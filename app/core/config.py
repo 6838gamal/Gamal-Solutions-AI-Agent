@@ -1,5 +1,6 @@
 import os
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 
 _DB_URL_DEFAULT = "postgresql://gamalalmaqtary:xndaLTpmEnsMY5cyBwXyX5sRRup8ooAD@dpg-dak2e10jo6nc73b85au0-a.oregon-postgres.render.com/gamal_solutions_ai_agent_db_h3bk"
 _SECRET_KEY_DEFAULT = "gamal-solutions-enterprise-secret-key-2024-super-secure-jwt"
@@ -22,31 +23,80 @@ class Settings(BaseSettings):
     # ══════════════════════════════════════════════════════════════════
     # YouTube Integration
     # ══════════════════════════════════════════════════════════════════
-    # مفتاح YouTube Data API v3 — احصل عليه من Google Cloud Console
-    # https://console.cloud.google.com/apis/credentials
     YOUTUBE_API_KEY: str = ""
 
-    # كلمات التتبع التلقائي — يعمل الـcollector عليها كل 30 دقيقة
-    YOUTUBE_TRACKED_QUERIES: list[str] = [
-        "ai agents",
-        "ai voice cloning",
-        "local ai models",
-    ]
+    # ⚠️ فارغ افتراضيًا — يُملأ من متغيرات البيئة فقط.
+    #
+    # في Render → Environment → YOUTUBE_TRACKED_QUERIES:
+    #   الصيغة الموصى بها (CSV):
+    #     ai agents,ai voice cloning,local ai models,ai automation
+    #
+    #   الصيغة البديلة (JSON):
+    #     ["ai agents","ai voice cloning","local ai models"]
+    #
+    # لو بقي فارغًا، الـcollector لن يجمع شيئًا.
+    YOUTUBE_TRACKED_QUERIES: list[str] = []
 
-    # الحد الأقصى للنتائج لكل query (YouTube يسمح حتى 50)
     YOUTUBE_MAX_RESULTS_PER_QUERY: int = 25
-
-    # الفاصل الزمني بين دورات الجمع (بالدقائق)
     YOUTUBE_COLLECT_INTERVAL_MINUTES: int = 30
-
-    # عدد الفيديوهات الحديثة التي تُحدَّث snapshots لها في كل دورة
     YOUTUBE_SNAPSHOT_REFRESH_LIMIT: int = 100
 
     # ══════════════════════════════════════════════════════════════════
-    # LLM Provider (لاحقًا — عند بناء Ideas Generator)
+    # LLM Provider (لاحقًا)
     # ══════════════════════════════════════════════════════════════════
     LLM_PROVIDER: str = "gemini"
     LLM_API_KEY: str = ""
+
+    # ──────────────────────────────────────────────────────────────────
+    # Validators — دعم CSV و JSON معًا
+    # ──────────────────────────────────────────────────────────────────
+
+    @field_validator("YOUTUBE_TRACKED_QUERIES", mode="before")
+    @classmethod
+    def _parse_queries(cls, v):
+        """
+        يقبل:
+          - list[str] (من الكود)
+          - JSON string: '["a","b","c"]'
+          - CSV string:  'a,b,c'
+          - فارغ / None → []
+        """
+        if v is None or v == "":
+            return []
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if str(x).strip()]
+        if isinstance(v, str):
+            v = v.strip()
+            # جرّب JSON أولًا
+            if v.startswith("[") and v.endswith("]"):
+                import json
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except Exception:
+                    pass
+            # fallback إلى CSV
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return []
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def _parse_cors(cls, v):
+        if v is None or v == "":
+            return ["*"]
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return ["*"]
 
     def model_post_init(self, __context):
         if not self.DB_URL or self.DB_URL.strip() == "":

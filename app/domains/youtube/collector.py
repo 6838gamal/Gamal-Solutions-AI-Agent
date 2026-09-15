@@ -5,6 +5,7 @@ Collector — يعمل في thread داخل startup() بنفس نمط telegram_a
 الإصلاحات:
   • initial_delay الافتراضي = 30 دقيقة لمنع الازدواج مع أول جمع يدوي.
   • Snapshot dedup: لا snapshot جديد لنفس الفيديو قبل مرور MIN_INTERVAL_MINUTES.
+  • فحص القائمة الفارغة: يتوقف بهدوء إن لم تُضَف أي queries.
 """
 import time
 from datetime import datetime, timedelta
@@ -95,6 +96,19 @@ def run_collection_once():
         queries = getattr(settings, "YOUTUBE_TRACKED_QUERIES", []) or []
         max_results = getattr(settings, "YOUTUBE_MAX_RESULTS_PER_QUERY", 25)
         snapshot_limit = getattr(settings, "YOUTUBE_SNAPSHOT_REFRESH_LIMIT", 100)
+
+        # فحص القائمة الفارغة
+        if not queries:
+            print("[YouTubeCollector] no queries configured — nothing to collect")
+            print("[YouTubeCollector]    set YOUTUBE_TRACKED_QUERIES in Render → Environment")
+            return
+
+        # فحص الـAPI key
+        if not getattr(settings, "YOUTUBE_API_KEY", None):
+            print("[YouTubeCollector] YOUTUBE_API_KEY not set — nothing to collect")
+            return
+
+        print(f"[YouTubeCollector] running collection for {len(queries)} queries...")
 
         for q in queries:
             try:

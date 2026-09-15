@@ -217,3 +217,26 @@ def list_opportunities(
         min_demand=min_demand,
         max_competition=max_competition,
     )
+
+
+
+
+
+@router.get("/opportunities")
+def list_opportunities(
+    limit: int = 50,
+    min_videos: int = 2,
+    min_demand: float = 0.0,
+    max_competition: float = 100.0,
+    dedupe: bool = True,        # ← جديد
+    db: Session = Depends(get_db),
+):
+    from app.domains.youtube.services.opportunities import get_opportunities
+    return get_opportunities(
+        db,
+        limit=limit,
+        min_videos=min_videos,
+        min_demand=min_demand,
+        max_competition=max_competition,
+        dedupe=dedupe,          # ← جديد
+    )

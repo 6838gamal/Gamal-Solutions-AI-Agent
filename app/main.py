@@ -61,7 +61,7 @@ app = FastAPI(
 app.add_middleware(NoCacheHTMLMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS_LIST,  # ← من config.py
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -91,6 +91,7 @@ app.include_router(public_router, prefix="/api/public/v1")
 # Web (HTML) routes
 app.include_router(web_router)
 
+# YouTube REST API
 app.include_router(youtube_api_router)
 
 
@@ -395,31 +396,44 @@ def startup():
     threading.Thread(target=telegram_auto_sync, daemon=True).start()
 
     # ── Auto-collect YouTube data every 30 minutes ────────────────────────
-    def youtube_auto_collect():
-        # Wait for DB to be ready first
-        time.sleep(45)
-        # فحص أولي لإعدادات API
+    def _youtube_collector_thread():
+        """
+        Thread target — يشغّل حلقة الجمع الدورية لـ YouTube.
+        - ينتظر 45 ثانية حتى تجهز قاعدة البيانات
+        - يتحقق من YOUTUBE_API_KEY و YOUTUBE_TRACKED_QUERIES قبل البدء
+        - يستورد الحلقة من app.domains.youtube.services.collector
+        """
+        import time as _time
+        _time.sleep(45)
+
         if not getattr(settings, "YOUTUBE_API_KEY", None):
-            print("[YouTubeCollector] ⚠️  YOUTUBE_API_KEY غير مُعرَّف — سيتم تجاهل الجمع التلقائي")
+            print("[YouTubeCollector] ⚠️  YOUTUBE_API_KEY غير مُعرَّف — تجاهل الجمع التلقائي")
             return
-        # فحص قائمة الـqueries قبل تشغيل الـcollector
+
         queries = getattr(settings, "YOUTUBE_TRACKED_QUERIES", []) or []
         if not queries:
             print("[YouTubeCollector] ⚠️  YOUTUBE_TRACKED_QUERIES فارغ — لن يجمع أي بيانات")
             print("[YouTubeCollector]    أضِف القائمة في Render → Environment")
             return
+
         print(f"[YouTubeCollector] {len(queries)} queries configured: {queries}")
+
         try:
-            from app.domains.youtube.collector import youtube_auto_collect as _collector_loop
+            from app.domains.youtube.services.collector import (
+                youtube_auto_collect as _loop,
+            )
             interval_min = getattr(settings, "YOUTUBE_COLLECT_INTERVAL_MINUTES", 30)
-            _collector_loop(
+            _loop(
                 interval_sec=interval_min * 60,
                 initial_delay=interval_min * 60,   # ← أول دورة بعد 30 دقيقة
             )
-        except Exception as yt_err:
-            print(f"[YouTubeCollector] fatal: {yt_err}")
+        except ImportError as e:
+            print(f"[YouTubeCollector] ❌ ImportError: {e}")
+            print(f"[YouTubeCollector]    تأكد من وجود app/domains/youtube/services/collector.py")
+        except Exception as e:
+            print(f"[YouTubeCollector] ❌ fatal: {e}")
 
-    threading.Thread(target=youtube_auto_collect, daemon=True).start()
+    threading.Thread(target=_youtube_collector_thread, daemon=True).start()
     print(f"[Startup] YouTube collector thread scheduled (30 min interval)")
 
     # ── Keep-Alive Ping (prevents Render / free-tier sleep) ───────────────

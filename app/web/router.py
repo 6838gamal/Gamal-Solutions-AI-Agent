@@ -464,7 +464,6 @@ def whatsapp_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_from_cookie(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-    # TODO: استبدل هذا بالاستعلامات الحقيقية بعد إنشاء domain whatsapp
     account = None
     messages = []
     rules = []
@@ -777,74 +776,22 @@ def tiktok_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
-# ─── YOUTUBE ──────────────────────────────────────────────────────────────────
+# ─── YOUTUBE OPPORTUNITIES ────────────────────────────────────────────────────
+# ملاحظة: /youtube نفسه مُعرَّف في app/domains/youtube/web.py
+# (مضمّن عبر router.include_router(youtube_web_router) في الأعلى)
 
-@router.get("/youtube", response_class=HTMLResponse)
-def youtube_page(request: Request, db: Session = Depends(get_db)):
+@router.get("/youtube/opportunities", response_class=HTMLResponse)
+def youtube_opportunities_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user_from_cookie(request, db)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-    account = None
-    videos = []
-    comments = []
-    rules = []
-    try:
-        from app.domains.youtube import models as yt_models
-        account = db.query(yt_models.YouTubeAccount).first()
-        if account:
-            videos = db.query(yt_models.YouTubeVideo)\
-                .filter_by(account_id=account.id)\
-                .order_by(yt_models.YouTubeVideo.created_at.desc())\
-                .limit(200).all()
-            comments = db.query(yt_models.YouTubeComment)\
-                .filter_by(account_id=account.id)\
-                .order_by(yt_models.YouTubeComment.created_at.desc())\
-                .limit(200).all()
-            rules = db.query(yt_models.YouTubeReplyRule)\
-                .filter_by(account_id=account.id).all()
-    except Exception:
-        pass
-
-    def video_to_dict(v):
-        return {
-            "id": v.id,
-            "video_id": getattr(v, "video_id", ""),
-            "title": getattr(v, "title", "") or "",
-            "description": getattr(v, "description", "") or "",
-            "channel_title": getattr(v, "channel_title", "") or "",
-            "views": getattr(v, "views", 0),
-            "likes": getattr(v, "likes", 0),
-            "comments_count": getattr(v, "comments_count", 0),
-            "duration": getattr(v, "duration", "") or "",
-            "url": getattr(v, "url", "") or "",
-            "is_analyzed": getattr(v, "is_analyzed", False),
-            "analysis_result": getattr(v, "analysis_result", {}) or {},
-            "created_at": v.created_at.isoformat() if getattr(v, "created_at", None) else None,
-        }
-
-    def rule_to_dict(r):
-        return {
-            "id": r.id,
-            "rule_name": getattr(r, "rule_name", ""),
-            "is_active": getattr(r, "is_active", True),
-            "keywords": getattr(r, "keywords", []) or [],
-            "reply_mode": getattr(r, "reply_mode", "auto"),
-            "reply_template": getattr(r, "reply_template", "") or "",
-            "replies_sent": getattr(r, "replies_sent", 0),
-        }
-
-    return templates.TemplateResponse("youtube.html", {
+    return templates.TemplateResponse("youtube_opportunities.html", {
         "request": request,
         "user": user,
-        "page": "youtube",
-        "account": account,
-        "videos": videos,
-        "comments": comments,
-        "videos_json": json.dumps([video_to_dict(v) for v in videos], ensure_ascii=False),
-        "rules_json": json.dumps([rule_to_dict(r) for r in rules], ensure_ascii=False),
+        "page": "youtube-opportunities",
     })
 
- 
+
 # ─── GOOGLE TRENDS ────────────────────────────────────────────────────────────
 
 @router.get("/google-trends", response_class=HTMLResponse)
@@ -915,19 +862,4 @@ def api_settings_page(request: Request, db: Session = Depends(get_db)):
         "page":      "api-settings",
         "keys":      keys_data,
         "keys_json": json.dumps(keys_data, ensure_ascii=False),
-    })
-
-
-
-
-
-
-@router.get("/youtube/opportunities", response_class=HTMLResponse)
-def youtube_opportunities_page(request: Request):
-    from fastapi.templating import Jinja2Templates
-    import os
-    templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-    templates = Jinja2Templates(directory=templates_dir)
-    return templates.TemplateResponse("youtube_opportunities.html", {
-        "request": request,
     })

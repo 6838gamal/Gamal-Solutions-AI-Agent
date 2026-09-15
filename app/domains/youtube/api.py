@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.domains.youtube.models import YouTubeVideo
 from app.domains.youtube.services import videos as videos_svc
-from app.domains.youtube.services import collector as collector_svc
+from app.domains.youtube import collector as collector_svc
 from app.domains.youtube.services.search import search_and_store
 
 router = APIRouter(prefix="/api/v1/youtube", tags=["youtube-api"])

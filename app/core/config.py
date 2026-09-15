@@ -1,10 +1,32 @@
 import os
-from typing import Annotated
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, NoDecode
+import json
+from pydantic_settings import BaseSettings
 
 _DB_URL_DEFAULT = "postgresql://gamalalmaqtary:xndaLTpmEnsMY5cyBwXyX5sRRup8ooAD@dpg-dak2e10jo6nc73b85au0-a.oregon-postgres.render.com/gamal_solutions_ai_agent_db_h3bk"
 _SECRET_KEY_DEFAULT = "gamal-solutions-enterprise-secret-key-2024-super-secure-jwt"
+
+
+def _parse_csv_or_json_list(raw: str) -> list[str]:
+    """
+    يحوّل string إلى list[str].
+    يدعم:
+      - JSON:  '["a","b","c"]'
+      - CSV:   'a,b,c'
+      - فارغ → []
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    # JSON أولًا
+    if raw.startswith("[") and raw.endswith("]"):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(x).strip() for x in parsed if str(x).strip()]
+        except Exception:
+            pass
+    # fallback CSV
+    return [x.strip() for x in raw.split(",") if x.strip()]
 
 
 class Settings(BaseSettings):
@@ -19,23 +41,22 @@ class Settings(BaseSettings):
     BACKEND_PORT: int = 5000
     ENVIRONMENT: str = "production"
 
-    # ⚠️ NoDecode: يمنع pydantic-settings من محاولة تحليل القيمة كـJSON
-    # نتعامل مع التحليل بأنفسنا في field_validator
-    BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = ["*"]
+    # ⚠️ string خام — نستخدم property للتحويل
+    BACKEND_CORS_ORIGINS: str = "*"
 
     # ══════════════════════════════════════════════════════════════════
     # YouTube Integration
     # ══════════════════════════════════════════════════════════════════
     YOUTUBE_API_KEY: str = ""
 
-    # ⚠️ فارغ افتراضيًا — يُملأ من متغيرات البيئة
+    # ⚠️ string خام — يُقرأ من البيئة بصيغة CSV أو JSON
     #
-    # الصيغة الموصى بها (CSV):
-    #   YOUTUBE_TRACKED_QUERIES=ai agents,ai voice cloning,local ai models
+    # في Render → Environment:
+    #   YOUTUBE_TRACKED_QUERIES_RAW = ai agents,ai voice cloning,local ai models
     #
-    # الصيغة البديلة (JSON):
-    #   YOUTUBE_TRACKED_QUERIES=["ai agents","ai voice cloning"]
-    YOUTUBE_TRACKED_QUERIES: Annotated[list[str], NoDecode] = []
+    # أو JSON:
+    #   YOUTUBE_TRACKED_QUERIES_RAW = ["ai agents","ai voice cloning"]
+    YOUTUBE_TRACKED_QUERIES_RAW: str = ""
 
     YOUTUBE_MAX_RESULTS_PER_QUERY: int = 25
     YOUTUBE_COLLECT_INTERVAL_MINUTES: int = 30
@@ -47,56 +68,35 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "gemini"
     LLM_API_KEY: str = ""
 
-    # ──────────────────────────────────────────────────────────────────
-    # Validators
-    # ──────────────────────────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════
+    # Properties — تُقرأ من الكود كما لو كانت حقولًا عادية
+    # ══════════════════════════════════════════════════════════════════
 
-    @field_validator("YOUTUBE_TRACKED_QUERIES", mode="before")
-    @classmethod
-    def _parse_queries(cls, v):
+    @property
+    def YOUTUBE_TRACKED_QUERIES(self) -> list[str]:
         """
-        يقبل:
-          - list[str] (من الكود)
-          - JSON string: '["a","b","c"]'
-          - CSV string:  'a,b,c'
-          - فارغ / None → []
+        يحوّل YOUTUBE_TRACKED_QUERIES_RAW (string) إلى list[str].
+        يدعم CSV و JSON.
         """
-        if v is None or v == "":
-            return []
-        if isinstance(v, list):
-            return [str(x).strip() for x in v if str(x).strip()]
-        if isinstance(v, str):
-            v = v.strip()
-            # جرّب JSON أولًا
-            if v.startswith("[") and v.endswith("]"):
-                import json
-                try:
-                    parsed = json.loads(v)
-                    if isinstance(parsed, list):
-                        return [str(x).strip() for x in parsed if str(x).strip()]
-                except Exception:
-                    pass
-            # fallback إلى CSV
-            return [x.strip() for x in v.split(",") if x.strip()]
-        return []
+        return _parse_csv_or_json_list(self.YOUTUBE_TRACKED_QUERIES_RAW)
 
-    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
-    @classmethod
-    def _parse_cors(cls, v):
-        if v is None or v == "":
+    @property
+    def BACKEND_CORS_ORIGINS_LIST(self) -> list[str]:
+        """
+        يحوّل BACKEND_CORS_ORIGINS (string) إلى list[str].
+        استخدم هذا في main.py بدلًا من BACKEND_CORS_ORIGINS.
+        """
+        raw = (self.BACKEND_CORS_ORIGINS or "").strip()
+        if not raw:
             return ["*"]
-        if isinstance(v, list):
-            return v
-        if isinstance(v, str):
-            v = v.strip()
-            if v.startswith("[") and v.endswith("]"):
-                import json
-                try:
-                    return json.loads(v)
-                except Exception:
-                    pass
-            return [x.strip() for x in v.split(",") if x.strip()]
-        return ["*"]
+        if raw.startswith("[") and raw.endswith("]"):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [str(x).strip() for x in parsed if str(x).strip()]
+            except Exception:
+                pass
+        return [x.strip() for x in raw.split(",") if x.strip()]
 
     def model_post_init(self, __context):
         if not self.DB_URL or self.DB_URL.strip() == "":

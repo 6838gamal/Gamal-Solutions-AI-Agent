@@ -27,7 +27,7 @@ def youtube_page(request: Request, db: Session = Depends(get_db)):
     تُمرَّر tracked_queries_json لتملأ تبويب "كلمات التتبع".
     """
     # اجلب قائمة الكلمات من الإعدادات
-    tracked = getattr(settings, "YOUTUBE_TRACKED_QUERIES_RAW", []) or []
+    tracked = list(getattr(settings, "YOUTUBE_TRACKED_QUERIES", []) or [])
     tracked_json = json.dumps(tracked, ensure_ascii=False)
 
     # هل مفتاح YouTube مُعرَّف؟

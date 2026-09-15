@@ -17,6 +17,9 @@ from app.domains.workflows import models as wf_models
 from app.domains.audit import models as audit_models
 from app.domains.telegram import models as tg_models
 
+from app.domains.youtube.web import router as youtube_web_router
+router.include_router(youtube_web_router)
+
 import json
 import os
 

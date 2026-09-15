@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.domains.youtube.schemas import (
@@ -11,6 +12,10 @@ from app.domains.youtube.services import videos as videos_svc
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
 
+
+# ══════════════════════════════════════════════════════════════════
+# Search & Videos
+# ══════════════════════════════════════════════════════════════════
 
 @router.get("/search", response_model=SearchResultOut)
 def youtube_search(
@@ -80,6 +85,10 @@ def get_video_velocity(video_id: int, db: Session = Depends(get_db)):
     return videos_svc.compute_velocity(db, video_id)
 
 
+# ══════════════════════════════════════════════════════════════════
+# Collector
+# ══════════════════════════════════════════════════════════════════
+
 @router.post("/collect")
 def trigger_collect():
     """يشغّل دورة جمع يدويًا (في نفس الـthread، بدون background)."""
@@ -88,36 +97,20 @@ def trigger_collect():
     return {"status": "ok"}
 
 
-# ── Helpers ────────────────────────────────────────────────────────────
-
-def _video_to_out(v) -> VideoOut:
-    latest = v.snapshots[-1] if v.snapshots else None
-    return VideoOut(
-        id=v.id,
-        youtube_id=v.youtube_id,
-        title=v.title,
-        channel_id=v.channel_id,
-        channel_title=v.channel.title if v.channel else None,
-        published_at=v.published_at,
-        duration_sec=v.duration_sec,
-        thumbnail_url=v.thumbnail_url,
-        view_count=latest.view_count if latest else None,
-        like_count=latest.like_count if latest else None,
-        comment_count=latest.comment_count if latest else None,
-    )
+# ══════════════════════════════════════════════════════════════════
+# Stats
+# ══════════════════════════════════════════════════════════════════
 
 @router.get("/stats")
 def youtube_stats(db: Session = Depends(get_db)):
     from app.domains.youtube.models import YouTubeChannel, YouTubeVideo, VideoSnapshot
-    from sqlalchemy import func
+    from sqlalchemy import func, distinct
+    from datetime import datetime, timedelta
+
     videos = db.query(func.count(YouTubeVideo.id)).scalar() or 0
     channels = db.query(func.count(YouTubeChannel.id)).scalar() or 0
     snapshots = db.query(func.count(VideoSnapshot.id)).scalar() or 0
 
-    # rising: فيديوهات لها snapshot-ين على الأقل في آخر 24 ساعة
-    # (مبسّط — لاحقًا نحوّله لـengine كامل)
-    from sqlalchemy import distinct
-    from datetime import datetime, timedelta
     since = datetime.utcnow() - timedelta(hours=24)
     rising = (
         db.query(func.count(distinct(VideoSnapshot.video_id)))
@@ -128,12 +121,13 @@ def youtube_stats(db: Session = Depends(get_db)):
     return {"videos": videos, "channels": channels, "snapshots": snapshots, "rising": rising}
 
 
+# ══════════════════════════════════════════════════════════════════
+# Rising
+# ══════════════════════════════════════════════════════════════════
 
 @router.get("/rising")
 def rising_videos(limit: int = 20, db: Session = Depends(get_db)):
-    """
-    يرجع الفيديوهات مرتبة حسب views_per_hour (يحتاج snapshot-ين على الأقل).
-    """
+    """يرجع الفيديوهات مرتبة حسب views_per_hour (يحتاج snapshot-ين على الأقل)."""
     from app.domains.youtube.models import YouTubeVideo
     from sqlalchemy import desc
 
@@ -150,7 +144,6 @@ def rising_videos(limit: int = 20, db: Session = Depends(get_db)):
         if velocity["views_per_hour"] is None:
             continue
         latest = videos_svc.latest_snapshot(db, v.id)
-        # breakout: views / subscribers
         subs = v.channel.subscriber_count if v.channel else 0
         breakout = (latest.view_count / subs) if (subs and latest) else None
 
@@ -170,8 +163,6 @@ def rising_videos(limit: int = 20, db: Session = Depends(get_db)):
     return results[:limit]
 
 
-
-
 # ══════════════════════════════════════════════════════════════════
 # Topics & Opportunities
 # ══════════════════════════════════════════════════════════════════
@@ -179,12 +170,12 @@ def rising_videos(limit: int = 20, db: Session = Depends(get_db)):
 @router.get("/topics")
 def list_topics(
     limit: int = 50,
-    min_videos: int = 3,
+    min_videos: int = 2,
     db: Session = Depends(get_db),
 ):
     """قائمة المواضيع المجمّعة من العناوين."""
     from app.domains.youtube.services.topics import extract_topics
-    topics = extract_topics(db, limit=1000, min_videos=min_videos)
+    topics = extract_topics(db, limit=500, min_videos=min_videos)
     return topics[:limit]
 
 
@@ -201,9 +192,10 @@ def topic_detail(topic_name: str, db: Session = Depends(get_db)):
 @router.get("/opportunities")
 def list_opportunities(
     limit: int = 50,
-    min_videos: int = 3,
+    min_videos: int = 2,
     min_demand: float = 0.0,
     max_competition: float = 100.0,
+    dedupe: bool = True,
     db: Session = Depends(get_db),
 ):
     """
@@ -216,27 +208,80 @@ def list_opportunities(
         min_videos=min_videos,
         min_demand=min_demand,
         max_competition=max_competition,
+        dedupe=dedupe,
     )
 
 
+# ══════════════════════════════════════════════════════════════════
+# LLM — توليد عناوين
+# ══════════════════════════════════════════════════════════════════
+
+class GenerateTitlesRequest(BaseModel):
+    language: str = Field("both", description="ar | en | both")
+    count: int = Field(10, ge=3, le=20, description="عدد العناوين")
 
 
-
-@router.get("/opportunities")
-def list_opportunities(
-    limit: int = 50,
-    min_videos: int = 2,
-    min_demand: float = 0.0,
-    max_competition: float = 100.0,
-    dedupe: bool = True,        # ← جديد
+@router.post("/opportunities/{topic}/generate-titles")
+async def generate_titles_endpoint(
+    topic: str,
+    payload: GenerateTitlesRequest = Body(default_factory=GenerateTitlesRequest),
     db: Session = Depends(get_db),
 ):
+    """
+    يولّد عناوين مقترحة لفرصة معينة باستخدام Gemini.
+
+    Body:
+      {
+        "language": "ar" | "en" | "both",
+        "count": 3-20
+      }
+    """
     from app.domains.youtube.services.opportunities import get_opportunities
-    return get_opportunities(
-        db,
-        limit=limit,
-        min_videos=min_videos,
-        min_demand=min_demand,
-        max_competition=max_competition,
-        dedupe=dedupe,          # ← جديد
+    from app.domains.youtube.services.llm.titles import generate_titles
+
+    topic_lower = topic.lower().strip()
+
+    # اجلب الفرصة — ابحث بالـtopic أو variants
+    opps = get_opportunities(db, limit=200, min_videos=2, dedupe=True)
+    opp = next(
+        (o for o in opps if o["topic"].lower() == topic_lower),
+        None,
+    )
+    if not opp:
+        opp = next(
+            (
+                o for o in opps
+                if topic_lower in [v.lower() for v in (o.get("variants") or [])]
+            ),
+            None,
+        )
+    if not opp:
+        raise HTTPException(404, f"topic '{topic}' not found")
+
+    result = await generate_titles(
+        opportunity=opp,
+        language=payload.language,
+        count=payload.count,
+    )
+    return result
+
+
+# ══════════════════════════════════════════════════════════════════
+# Helpers
+# ══════════════════════════════════════════════════════════════════
+
+def _video_to_out(v) -> VideoOut:
+    latest = v.snapshots[-1] if v.snapshots else None
+    return VideoOut(
+        id=v.id,
+        youtube_id=v.youtube_id,
+        title=v.title,
+        channel_id=v.channel_id,
+        channel_title=v.channel.title if v.channel else None,
+        published_at=v.published_at,
+        duration_sec=v.duration_sec,
+        thumbnail_url=v.thumbnail_url,
+        view_count=latest.view_count if latest else None,
+        like_count=latest.like_count if latest else None,
+        comment_count=latest.comment_count if latest else None,
     )

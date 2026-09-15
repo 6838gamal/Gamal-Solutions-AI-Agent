@@ -10,6 +10,8 @@ from app.web.router import router as web_router
 
 from app.domains.youtube.api import router as youtube_api_router
 
+from app.domains.youtube.web import router as youtube_web_router
+
 import os
 from datetime import datetime
 
@@ -93,6 +95,14 @@ app.include_router(web_router)
 
 # YouTube REST API
 app.include_router(youtube_api_router)
+
+
+
+
+# YouTube Web Pages (HTML)  ← أضف هذا
+app.include_router(youtube_web_router)
+
+
 
 
 @app.on_event("startup")

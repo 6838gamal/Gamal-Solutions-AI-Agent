@@ -19,6 +19,35 @@ class Settings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
 
+    # ══════════════════════════════════════════════════════════════════
+    # YouTube Integration
+    # ══════════════════════════════════════════════════════════════════
+    # مفتاح YouTube Data API v3 — احصل عليه من Google Cloud Console
+    # https://console.cloud.google.com/apis/credentials
+    YOUTUBE_API_KEY: str = ""
+
+    # كلمات التتبع التلقائي — يعمل الـcollector عليها كل 30 دقيقة
+    YOUTUBE_TRACKED_QUERIES: list[str] = [
+        "ai agents",
+        "ai voice cloning",
+        "local ai models",
+    ]
+
+    # الحد الأقصى للنتائج لكل query (YouTube يسمح حتى 50)
+    YOUTUBE_MAX_RESULTS_PER_QUERY: int = 25
+
+    # الفاصل الزمني بين دورات الجمع (بالدقائق)
+    YOUTUBE_COLLECT_INTERVAL_MINUTES: int = 30
+
+    # عدد الفيديوهات الحديثة التي تُحدَّث snapshots لها في كل دورة
+    YOUTUBE_SNAPSHOT_REFRESH_LIMIT: int = 100
+
+    # ══════════════════════════════════════════════════════════════════
+    # LLM Provider (لاحقًا — عند بناء Ideas Generator)
+    # ══════════════════════════════════════════════════════════════════
+    LLM_PROVIDER: str = "gemini"
+    LLM_API_KEY: str = ""
+
     def model_post_init(self, __context):
         if not self.DB_URL or self.DB_URL.strip() == "":
             object.__setattr__(self, "DB_URL", _DB_URL_DEFAULT)

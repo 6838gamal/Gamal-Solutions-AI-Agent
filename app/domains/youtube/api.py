@@ -1,17 +1,24 @@
+"""
+YouTube REST API — يستهلكه Alpine في youtube.html.
+كل المسارات تحت /api/v1/youtube
+"""
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional, List
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.domains.youtube.models import YouTubeVideo
 from app.domains.youtube.services import videos as videos_svc
-from app.domains.youtube.services import collector as collector_svc  # إن وُجد
+from app.domains.youtube.services import collector as collector_svc
+from app.domains.youtube.services.search import search_and_store
 
 router = APIRouter(prefix="/api/v1/youtube", tags=["youtube-api"])
 
 
-# ─── Stats ────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# GET /api/v1/youtube/stats
+# ══════════════════════════════════════════════════════════════════════
+
 @router.get("/stats")
 def youtube_stats(db: Session = Depends(get_db)):
     return {
@@ -22,7 +29,10 @@ def youtube_stats(db: Session = Depends(get_db)):
     }
 
 
-# ─── Search ───────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# GET /api/v1/youtube/search
+# ══════════════════════════════════════════════════════════════════════
+
 @router.get("/search")
 def youtube_search(
     q: str = Query(..., min_length=2),
@@ -30,31 +40,88 @@ def youtube_search(
     persist: bool = Query(True),
     db: Session = Depends(get_db),
 ):
-    if not settings.YOUTUBE_API_KEY:
-        raise HTTPException(400, "YOUTUBE_API_KEY غير مُعرَّف")
-    results = videos_svc.search_youtube(
-        db, query=q, max_results=max_results, persist=persist
-    )
+    if not getattr(settings, "YOUTUBE_API_KEY", None):
+        raise HTTPException(400, "YOUTUBE_API_KEY غير مُعرَّف في البيئة")
+
+    try:
+        stored = search_and_store(db, q=q, max_results=max_results)
+
+        # أعِد تحميلهم مع joinedload لتفادي N+1
+        if stored:
+            ids = [v.id for v in stored]
+            rows = (
+                db.query(YouTubeVideo)
+                .options(
+                    joinedload(YouTubeVideo.channel),
+                    joinedload(YouTubeVideo.snapshots),
+                )
+                .filter(YouTubeVideo.id.in_(ids))
+                .all()
+            )
+            results = [
+                videos_svc.serialize_video(
+                    v,
+                    snap=videos_svc.latest_snapshot_for(v),
+                )
+                for v in rows
+            ]
+        else:
+            results = []
+
+    except Exception as e:
+        raise HTTPException(502, f"YouTube error: {e}")
+
     return {"query": q, "count": len(results), "results": results}
 
 
-# ─── Collect ──────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# POST /api/v1/youtube/collect
+# ══════════════════════════════════════════════════════════════════════
+
 @router.post("/collect")
 def youtube_collect(db: Session = Depends(get_db)):
-    queries = settings.YOUTUBE_TRACKED_QUERIES
+    queries = getattr(settings, "YOUTUBE_TRACKED_QUERIES", []) or []
     if not queries:
-        raise HTTPException(400, "YOUTUBE_TRACKED_QUERIES_RAW فارغ")
-    stats = collector_svc.collect_all(db, queries)
-    return {"status": "ok", **stats}
+        raise HTTPException(
+            400,
+            "YOUTUBE_TRACKED_QUERIES_RAW فارغ — أضفه في Render → Environment"
+        )
+
+    try:
+        result = collector_svc.collect_all(db, queries)
+    except Exception as e:
+        raise HTTPException(500, f"Collector error: {e}")
+
+    return {"status": "ok", **result}
 
 
-# ─── Tracked videos ───────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# GET /api/v1/youtube/videos
+# ══════════════════════════════════════════════════════════════════════
+
 @router.get("/videos")
-def youtube_videos(limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)):
-    return videos_svc.list_videos(db, limit=limit)
+def youtube_videos(
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    rows = videos_svc.list_videos(db, limit=limit)
+    return [
+        videos_svc.serialize_video(
+            v,
+            snap=videos_svc.latest_snapshot_for(v),
+        )
+        for v in rows
+    ]
 
 
-# ─── Rising ───────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+# GET /api/v1/youtube/rising
+# ══════════════════════════════════════════════════════════════════════
+
 @router.get("/rising")
-def youtube_rising(limit: int = Query(20, ge=1, le=100), db: Session = Depends(get_db)):
+def youtube_rising(
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    # list_rising تُرجع list[dict] جاهزة
     return videos_svc.list_rising(db, limit=limit)

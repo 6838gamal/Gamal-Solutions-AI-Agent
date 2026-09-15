@@ -948,4 +948,4 @@ def api_settings_page(request: Request, db: Session = Depends(get_db)):
 # ══════════════════════════════════════════════════════════════════════════════
 # ⚠️  إعادة تسجيل youtube_web_router في النهاية ليتجاوز youtube_page القديم
 # ══════════════════════════════════════════════════════════════════════════════
-router.include_router(youtube_web_router)
+#router.include_router(youtube_web_router)

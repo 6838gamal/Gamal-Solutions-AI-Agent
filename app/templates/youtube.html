@@ -353,10 +353,6 @@
                 x-text="trackedQueries.length > 0
                         ? ('✅ ' + trackedQueries.length + ' كلمة مُفعَّلة')
                         : '⚠️ لا توجد كلمات مُفعَّلة'"></span>
-
-          <span class="text-xs font-medium px-2 py-1 rounded-full"
-                :class="apiKeySet ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'"
-                x-text="apiKeySet ? '🔑 مفتاح YouTube مُعرَّف' : '❌ مفتاح YouTube غير مُعرَّف'"></span>
         </div>
 
         <!-- إذا لا توجد كلمات -->
@@ -456,9 +452,8 @@ function youtubeApp() {
     risingVideos: [],
     loadingRising: false,
 
-    // Queries tab — القيم تُمرَّر من الخادم عبر Jinja
+    // Queries tab — القيمة تُمرَّر من الخادم عبر Jinja
     trackedQueries: {{ (tracked_queries_json | default('[]', true)) | safe }},
-    apiKeySet: {% if api_key_set %}true{% else %}false{% endif %},
 
     init() {
       this.checkHealth();

@@ -71,7 +71,19 @@ router = APIRouter(tags=["Web"])
 COOKIE_NAME = "access_token"
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ⚠️  ملاحظة مهمة حول ترتيب تسجيل /youtube:
+# يوجد تعريفان لـ /youtube:
+#   1. youtube_web_router (من app/domains/youtube/web.py) — يعرض youtube.html
+#      مع tracked_queries_json و api_key_set ✅
+#   2. youtube_page (في الأسفل في هذا الملف) — تعريف قديم بدون هذه المتغيرات ❌
+#
+# FastAPI يستخدم آخر تعريف مسجَّل. لذا نُسجّل youtube_web_router هنا أولًا
+# ثم نُعيد تسجيله في نهاية الملف ليفوز.
+# ══════════════════════════════════════════════════════════════════════════════
+
 router.include_router(youtube_web_router)
+
 
 def get_current_user_from_cookie(request: Request, db: Session) -> Optional[auth_models.User]:
     token = request.cookies.get(COOKIE_NAME)
@@ -331,7 +343,6 @@ def analytics_page(request: Request, db: Session = Depends(get_db)):
     for s in wf_models.TaskStatus:
         task_by_status[s.value] = db.query(wf_models.Task).filter(wf_models.Task.status == s).count()
 
-    # Telegram market intelligence
     tg_account = db.query(tg_models.TelegramAccount).first()
     tg_market = tg_account.market_analysis if tg_account and tg_account.market_analysis else None
     tg_market_at = (tg_account.market_analysis_at.strftime("%Y-%m-%d %H:%M") if tg_account and tg_account.market_analysis_at else None)
@@ -776,7 +787,10 @@ def tiktok_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
-# ─── YOUTUBE ──────────────────────────────────────────────────────────────────
+# ─── YOUTUBE (قديم — يُتجاوز بواسطة youtube_web_router في نهاية الملف) ───────
+# ⚠️  هذا تعريف قديم يستخدم YouTubeAccount/YouTubeVideo غير موجودين.
+#     نُبقيه لتفادي كسر أي كود قد يعتمد عليه، لكن youtube_web_router
+#     (المُعاد تسجيله في نهاية الملف) سيتجاوزه.
 
 @router.get("/youtube", response_class=HTMLResponse)
 def youtube_page(request: Request, db: Session = Depends(get_db)):
@@ -929,3 +943,9 @@ def api_settings_page(request: Request, db: Session = Depends(get_db)):
         "keys":      keys_data,
         "keys_json": json.dumps(keys_data, ensure_ascii=False),
     })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ⚠️  إعادة تسجيل youtube_web_router في النهاية ليتجاوز youtube_page القديم
+# ══════════════════════════════════════════════════════════════════════════════
+router.include_router(youtube_web_router)

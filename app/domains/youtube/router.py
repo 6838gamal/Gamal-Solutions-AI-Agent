@@ -168,3 +168,52 @@ def rising_videos(limit: int = 20, db: Session = Depends(get_db)):
 
     results.sort(key=lambda x: x["views_per_hour"] or 0, reverse=True)
     return results[:limit]
+
+
+
+
+# ══════════════════════════════════════════════════════════════════
+# Topics & Opportunities
+# ══════════════════════════════════════════════════════════════════
+
+@router.get("/topics")
+def list_topics(
+    limit: int = 50,
+    min_videos: int = 3,
+    db: Session = Depends(get_db),
+):
+    """قائمة المواضيع المجمّعة من العناوين."""
+    from app.domains.youtube.services.topics import extract_topics
+    topics = extract_topics(db, limit=1000, min_videos=min_videos)
+    return topics[:limit]
+
+
+@router.get("/topics/{topic_name}")
+def topic_detail(topic_name: str, db: Session = Depends(get_db)):
+    """تفاصيل موضوع معين."""
+    from app.domains.youtube.services.topics import get_topic_detail
+    detail = get_topic_detail(db, topic_name)
+    if not detail:
+        raise HTTPException(404, "topic not found")
+    return detail
+
+
+@router.get("/opportunities")
+def list_opportunities(
+    limit: int = 50,
+    min_videos: int = 3,
+    min_demand: float = 0.0,
+    max_competition: float = 100.0,
+    db: Session = Depends(get_db),
+):
+    """
+    قائمة الفرص مرتبة حسب Opportunity Score.
+    """
+    from app.domains.youtube.services.opportunities import get_opportunities
+    return get_opportunities(
+        db,
+        limit=limit,
+        min_videos=min_videos,
+        min_demand=min_demand,
+        max_competition=max_competition,
+    )

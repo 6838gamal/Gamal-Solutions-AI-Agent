@@ -927,7 +927,7 @@ def youtube_opportunities_page(request: Request):
     from fastapi.templating import Jinja2Templates
     import os
     templates_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-    tpl = Jinja2Templates(directory=templates_dir)
-    return tpl.TemplateResponse("youtube_opportunities.html", {
+    templates = Jinja2Templates(directory=templates_dir)
+    return templates.TemplateResponse("youtube_opportunities.html", {
         "request": request,
     })

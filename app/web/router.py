@@ -856,6 +856,335 @@ def google_trends_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GOOGLE MAPS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/google-maps", response_class=HTMLResponse)
+def google_maps_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    account, places, reviews, rules = None, [], [], []
+    try:
+        from app.domains.google_maps import models as gm_models
+        account = db.query(gm_models.GoogleMapsAccount).first()
+        if account:
+            places = db.query(gm_models.GoogleMapsPlace)\
+                .filter_by(account_id=account.id)\
+                .order_by(gm_models.GoogleMapsPlace.created_at.desc())\
+                .limit(200).all()
+            reviews = db.query(gm_models.GoogleMapsReview)\
+                .filter_by(account_id=account.id)\
+                .order_by(gm_models.GoogleMapsReview.created_at.desc())\
+                .limit(200).all()
+            rules = db.query(gm_models.GoogleMapsReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception as e:
+        logger.exception("Failed to load Google Maps data: %s", e)
+
+    def place_to_dict(p):
+        return {
+            "id": p.id,
+            "place_id": getattr(p, "place_id", ""),
+            "name": getattr(p, "name", "") or "",
+            "address": getattr(p, "address", "") or "",
+            "phone": getattr(p, "phone", "") or "",
+            "website": getattr(p, "website", "") or "",
+            "rating": getattr(p, "rating", 0),
+            "reviews_count": getattr(p, "reviews_count", 0),
+            "latitude": getattr(p, "latitude", None),
+            "longitude": getattr(p, "longitude", None),
+            "is_analyzed": getattr(p, "is_analyzed", False),
+            "analysis_result": getattr(p, "analysis_result", {}) or {},
+            "created_at": p.created_at.isoformat() if getattr(p, "created_at", None) else None,
+        }
+
+    def review_to_dict(r):
+        return {
+            "id": r.id,
+            "review_id": getattr(r, "review_id", ""),
+            "place_id": getattr(r, "place_id", ""),
+            "author_name": getattr(r, "author_name", "") or "مجهول",
+            "rating": getattr(r, "rating", 0),
+            "content": getattr(r, "content", "") or "",
+            "is_analyzed": getattr(r, "is_analyzed", False),
+            "analysis_result": getattr(r, "analysis_result", {}) or {},
+            "reply_sent": getattr(r, "reply_sent", False),
+            "created_at": r.created_at.isoformat() if getattr(r, "created_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "keywords": getattr(r, "keywords", []) or [],
+            "reply_mode": getattr(r, "reply_mode", "auto"),
+            "reply_template": getattr(r, "reply_template", "") or "",
+            "replies_sent": getattr(r, "replies_sent", 0),
+        }
+
+    return templates.TemplateResponse("google_maps.html", {
+        "request": request,
+        "user": user,
+        "page": "google-maps",
+        "account": account,
+        "places": places,
+        "reviews": reviews,
+        "places_json": _safe_json([place_to_dict(p) for p in places]),
+        "reviews_json": _safe_json([review_to_dict(r) for r in reviews]),
+        "rules_json": _safe_json([rule_to_dict(r) for r in rules]),
+    })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMAIL
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/email", response_class=HTMLResponse)
+def email_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    account, messages, rules = None, [], []
+    try:
+        from app.domains.email import models as em_models
+        account = db.query(em_models.EmailAccount).first()
+        if account:
+            messages = db.query(em_models.EmailMessage)\
+                .filter_by(account_id=account.id)\
+                .order_by(em_models.EmailMessage.received_at.desc())\
+                .limit(200).all()
+            rules = db.query(em_models.EmailReplyRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception as e:
+        logger.exception("Failed to load Email data: %s", e)
+
+    def msg_to_dict(m):
+        return {
+            "id": m.id,
+            "message_id": getattr(m, "message_id", ""),
+            "thread_id": getattr(m, "thread_id", ""),
+            "from_email": getattr(m, "from_email", "") or "",
+            "from_name": getattr(m, "from_name", "") or "مجهول",
+            "to_email": getattr(m, "to_email", "") or "",
+            "subject": getattr(m, "subject", "") or "",
+            "body": getattr(m, "body", "") or "",
+            "snippet": getattr(m, "snippet", "") or "",
+            "direction": getattr(m, "direction", "incoming"),
+            "is_read": getattr(m, "is_read", False),
+            "is_analyzed": getattr(m, "is_analyzed", False),
+            "analysis_result": getattr(m, "analysis_result", {}) or {},
+            "reply_sent": getattr(m, "reply_sent", False),
+            "received_at": m.received_at.isoformat() if getattr(m, "received_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "keywords": getattr(r, "keywords", []) or [],
+            "reply_mode": getattr(r, "reply_mode", "auto"),
+            "reply_template": getattr(r, "reply_template", "") or "",
+            "replies_sent": getattr(r, "replies_sent", 0),
+        }
+
+    return templates.TemplateResponse("email.html", {
+        "request": request,
+        "user": user,
+        "page": "email",
+        "account": account,
+        "messages": messages,
+        "messages_json": _safe_json([msg_to_dict(m) for m in messages]),
+        "rules_json": _safe_json([rule_to_dict(r) for r in rules]),
+    })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GOOGLE DRIVE
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/google-drive", response_class=HTMLResponse)
+def google_drive_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    account, files, folders, rules = None, [], [], []
+    try:
+        from app.domains.google_drive import models as gd_models
+        account = db.query(gd_models.GoogleDriveAccount).first()
+        if account:
+            files = db.query(gd_models.GoogleDriveFile)\
+                .filter_by(account_id=account.id)\
+                .order_by(gd_models.GoogleDriveFile.created_at.desc())\
+                .limit(200).all()
+            folders = db.query(gd_models.GoogleDriveFolder)\
+                .filter_by(account_id=account.id).all()
+            rules = db.query(gd_models.GoogleDriveRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception as e:
+        logger.exception("Failed to load Google Drive data: %s", e)
+
+    def file_to_dict(f):
+        return {
+            "id": f.id,
+            "file_id": getattr(f, "file_id", ""),
+            "name": getattr(f, "name", "") or "",
+            "mime_type": getattr(f, "mime_type", "") or "",
+            "size": getattr(f, "size", 0),
+            "web_view_link": getattr(f, "web_view_link", "") or "",
+            "icon_link": getattr(f, "icon_link", "") or "",
+            "parent_id": getattr(f, "parent_id", "") or "",
+            "is_analyzed": getattr(f, "is_analyzed", False),
+            "analysis_result": getattr(f, "analysis_result", {}) or {},
+            "created_at": f.created_at.isoformat() if getattr(f, "created_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "action": getattr(r, "action", "sync"),
+            "target_folder": getattr(r, "target_folder", "") or "",
+            "created_at": r.created_at.isoformat() if getattr(r, "created_at", None) else None,
+        }
+
+    return templates.TemplateResponse("google_drive.html", {
+        "request": request,
+        "user": user,
+        "page": "google-drive",
+        "account": account,
+        "files": files,
+        "folders": folders,
+        "files_json": _safe_json([file_to_dict(f) for f in files]),
+        "rules_json": _safe_json([rule_to_dict(r) for r in rules]),
+    })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GOOGLE SHEETS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/google-sheets", response_class=HTMLResponse)
+def google_sheets_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    account, spreadsheets, rules = None, [], []
+    try:
+        from app.domains.google_sheets import models as gs_models
+        account = db.query(gs_models.GoogleSheetsAccount).first()
+        if account:
+            spreadsheets = db.query(gs_models.GoogleSheet)\
+                .filter_by(account_id=account.id)\
+                .order_by(gs_models.GoogleSheet.created_at.desc())\
+                .limit(200).all()
+            rules = db.query(gs_models.GoogleSheetsRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception as e:
+        logger.exception("Failed to load Google Sheets data: %s", e)
+
+    def sheet_to_dict(s):
+        return {
+            "id": s.id,
+            "spreadsheet_id": getattr(s, "spreadsheet_id", ""),
+            "name": getattr(s, "name", "") or "",
+            "sheet_name": getattr(s, "sheet_name", "") or "",
+            "row_count": getattr(s, "row_count", 0),
+            "column_count": getattr(s, "column_count", 0),
+            "web_view_link": getattr(s, "web_view_link", "") or "",
+            "is_analyzed": getattr(s, "is_analyzed", False),
+            "analysis_result": getattr(s, "analysis_result", {}) or {},
+            "created_at": s.created_at.isoformat() if getattr(s, "created_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "action": getattr(r, "action", "read"),
+            "target_sheet": getattr(r, "target_sheet", "") or "",
+            "created_at": r.created_at.isoformat() if getattr(r, "created_at", None) else None,
+        }
+
+    return templates.TemplateResponse("google_sheets.html", {
+        "request": request,
+        "user": user,
+        "page": "google-sheets",
+        "account": account,
+        "spreadsheets": spreadsheets,
+        "spreadsheets_json": _safe_json([sheet_to_dict(s) for s in spreadsheets]),
+        "rules_json": _safe_json([rule_to_dict(r) for r in rules]),
+    })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GOOGLE DOCS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/google-docs", response_class=HTMLResponse)
+def google_docs_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user_from_cookie(request, db)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    account, documents, rules = None, [], []
+    try:
+        from app.domains.google_docs import models as gdc_models
+        account = db.query(gdc_models.GoogleDocsAccount).first()
+        if account:
+            documents = db.query(gdc_models.GoogleDoc)\
+                .filter_by(account_id=account.id)\
+                .order_by(gdc_models.GoogleDoc.created_at.desc())\
+                .limit(200).all()
+            rules = db.query(gdc_models.GoogleDocsRule)\
+                .filter_by(account_id=account.id).all()
+    except Exception as e:
+        logger.exception("Failed to load Google Docs data: %s", e)
+
+    def doc_to_dict(d):
+        return {
+            "id": d.id,
+            "document_id": getattr(d, "document_id", ""),
+            "title": getattr(d, "title", "") or "",
+            "body": getattr(d, "body", "") or "",
+            "web_view_link": getattr(d, "web_view_link", "") or "",
+            "word_count": getattr(d, "word_count", 0),
+            "is_analyzed": getattr(d, "is_analyzed", False),
+            "analysis_result": getattr(d, "analysis_result", {}) or {},
+            "created_at": d.created_at.isoformat() if getattr(d, "created_at", None) else None,
+        }
+
+    def rule_to_dict(r):
+        return {
+            "id": r.id,
+            "rule_name": getattr(r, "rule_name", ""),
+            "is_active": getattr(r, "is_active", True),
+            "action": getattr(r, "action", "read"),
+            "target_doc": getattr(r, "target_doc", "") or "",
+            "created_at": r.created_at.isoformat() if getattr(r, "created_at", None) else None,
+        }
+
+    return templates.TemplateResponse("google_docs.html", {
+        "request": request,
+        "user": user,
+        "page": "google-docs",
+        "account": account,
+        "documents": documents,
+        "documents_json": _safe_json([doc_to_dict(d) for d in documents]),
+        "rules_json": _safe_json([rule_to_dict(r) for r in rules]),
+    })
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # API SETTINGS
 # ══════════════════════════════════════════════════════════════════════════════

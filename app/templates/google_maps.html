@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}خرائط جوجل — جمال سولوشنز{% endblock %}
+{% block page_title %}خرائط جوجل{% endblock %}
+{% block page_subtitle %}إدارة المواقع التجارية والتقييمات والردود التلقائية{% endblock %}
+
+{% block header_actions %}
+<button onclick="openModal('add-place-modal')" class="btn-primary">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+  </svg>
+  إضافة موقع
+</button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Stats -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="stat-card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-slate-500 text-xs font-semibold mb-1">إجمالي المواقع</div>
+        <div class="text-2xl font-bold text-slate-800">{{ places | length }}</div>
+      </div>
+      <div class="w-11 h-11 bg-blue-100 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-slate-500 text-xs font-semibold mb-1">إجمالي التقييمات</div>
+        <div class="text-2xl font-bold text-slate-800">{{ reviews | length }}</div>
+      </div>
+      <div class="w-11 h-11 bg-yellow-100 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-slate-500 text-xs font-semibold mb-1">قواعد الرد</div>
+        <div class="text-2xl font-bold text-slate-800">{{ rules | length }}</div>
+      </div>
+      <div class="w-11 h-11 bg-green-100 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-slate-500 text-xs font-semibold mb-1">حالة الحساب</div>
+        <div class="mt-1">
+          {% if account and account.is_active is defined and account.is_active %}
+            <span class="badge badge-green">متصل</span>
+          {% elif account %}
+            <span class="badge badge-yellow">غير نشط</span>
+          {% else %}
+            <span class="badge badge-red">غير مربوط</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="w-11 h-11 bg-purple-100 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+  <div class="flex border-b border-slate-100 overflow-x-auto">
+    <button onclick="switchTab('places')" id="tab-btn-places"
+            class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-primary-600 text-primary-600 whitespace-nowrap">
+      المواقع
+    </button>
+    <button onclick="switchTab('reviews')" id="tab-btn-reviews"
+            class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 whitespace-nowrap">
+      التقييمات
+    </button>
+    <button onclick="switchTab('rules')" id="tab-btn-rules"
+            class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 whitespace-nowrap">
+      قواعد الرد
+    </button>
+  </div>
+
+  <!-- Tab: Places -->
+  <div id="tab-places" class="tab-content p-4">
+    {% if places %}
+    <div class="table-wrap">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-slate-500 text-xs uppercase border-b border-slate-100">
+            <th class="text-right py-3 px-3 font-semibold">الاسم</th>
+            <th class="text-right py-3 px-3 font-semibold">العنوان</th>
+            <th class="text-right py-3 px-3 font-semibold">الهاتف</th>
+            <th class="text-right py-3 px-3 font-semibold">التقييم</th>
+            <th class="text-right py-3 px-3 font-semibold">عدد التقييمات</th>
+            <th class="text-right py-3 px-3 font-semibold">إجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in places %}
+          <tr class="border-b border-slate-50 hover:bg-slate-50/50">
+            <td class="py-3 px-3 font-semibold text-slate-800">{{ p.name }}</td>
+            <td class="py-3 px-3 text-slate-600">{{ p.address or '—' }}</td>
+            <td class="py-3 px-3 text-slate-600" dir="ltr">{{ p.phone or '—' }}</td>
+            <td class="py-3 px-3">
+              <span class="badge badge-yellow">⭐ {{ p.rating or 0 }}</span>
+            </td>
+            <td class="py-3 px-3 text-slate-600">{{ p.reviews_count or 0 }}</td>
+            <td class="py-3 px-3">
+              <a href="{{ p.place_id | default('#') }}" target="_blank" rel="noopener"
+                 class="text-primary-600 hover:underline text-xs font-semibold">عرض على الخريطة</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-slate-400">
+      <svg class="w-14 h-14 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+      </svg>
+      <p class="text-sm">لا توجد مواقع مضافة بعد</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Tab: Reviews -->
+  <div id="tab-reviews" class="tab-content p-4 hidden">
+    {% if reviews %}
+    <div class="space-y-3">
+      {% for r in reviews %}
+      <div class="border border-slate-100 rounded-xl p-4 hover:border-slate-200 transition-colors">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="flex items-center gap-2">
+            <div class="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600">
+              {{ (r.author_name or 'م')[0] }}
+            </div>
+            <div>
+              <div class="font-semibold text-slate-800 text-sm">{{ r.author_name or 'مجهول' }}</div>
+              <div class="text-xs text-slate-400">
+                <span class="badge badge-yellow">⭐ {{ r.rating or 0 }}</span>
+              </div>
+            </div>
+          </div>
+          {% if r.reply_sent %}
+            <span class="badge badge-green">تم الرد</span>
+          {% else %}
+            <span class="badge badge-gray">بانتظار الرد</span>
+          {% endif %}
+        </div>
+        <p class="text-sm text-slate-700 leading-relaxed">{{ r.content or '—' }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-slate-400">
+      <p class="text-sm">لا توجد تقييمات بعد</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Tab: Rules -->
+  <div id="tab-rules" class="tab-content p-4 hidden">
+    <div class="flex justify-end mb-3">
+      <button onclick="openModal('add-rule-modal')" class="btn-primary text-xs">+ قاعدة جديدة</button>
+    </div>
+    {% if rules %}
+    <div class="space-y-2">
+      {% for r in rules %}
+      <div class="flex items-center justify-between border border-slate-100 rounded-xl p-3">
+        <div>
+          <div class="font-semibold text-slate-800 text-sm">{{ r.rule_name }}</div>
+          <div class="text-xs text-slate-500">{{ r.keywords | join(', ') if r.keywords else '—' }}</div>
+        </div>
+        {% if r.is_active %}
+          <span class="badge badge-green">نشط</span>
+        {% else %}
+          <span class="badge badge-gray">متوقف</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16 text-slate-400">
+      <p class="text-sm">لا توجد قواعد رد بعد</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal: Add Place -->
+<div id="add-place-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-slate-800">إضافة موقع جديد</h3>
+      <button onclick="closeModal('add-place-modal')" class="text-slate-400 hover:text-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <form hx-post="/api/google-maps/places" hx-swap="none" class="p-5 space-y-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Place ID</label>
+        <input name="place_id" required class="form-input" placeholder="ChIJ..."/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">الاسم</label>
+        <input name="name" required class="form-input"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">العنوان</label>
+        <input name="address" class="form-input"/>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('add-place-modal')" class="btn-secondary">إلغاء</button>
+        <button type="submit" class="btn-primary">حفظ</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add Rule -->
+<div id="add-rule-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-slate-800">إضافة قاعدة رد</h3>
+      <button onclick="closeModal('add-rule-modal')" class="text-slate-400 hover:text-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <form hx-post="/api/google-maps/rules" hx-swap="none" class="p-5 space-y-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">اسم القاعدة</label>
+        <input name="rule_name" required class="form-input"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">الكلمات المفتاحية (بفاصلة)</label>
+        <input name="keywords" class="form-input" placeholder="شكرا, رائع, ممتاز"/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">قالب الرد</label>
+        <textarea name="reply_template" rows="3" class="form-input"></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('add-rule-modal')" class="btn-secondary">إلغاء</button>
+        <button type="submit" class="btn-primary">حفظ</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function switchTab(name) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+    document.getElementById('tab-' + name).classList.remove('hidden');
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.remove('border-primary-600', 'text-primary-600');
+      b.classList.add('border-transparent', 'text-slate-500');
+    });
+    const btn = document.getElementById('tab-btn-' + name);
+    btn.classList.add('border-primary-600', 'text-primary-600');
+    btn.classList.remove('border-transparent', 'text-slate-500');
+  }
+</script>
+
+{% endblock %}

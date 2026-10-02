@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}جوجل شيت — جمال سولوشنز{% endblock %}
+{% block page_title %}جوجل شيت{% endblock %}
+{% block page_subtitle %}إدارة جداول البيانات والمزامنة{% endblock %}
+
+{% block header_actions %}
+<button onclick="openModal('new-sheet-modal')" class="btn-primary">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+  </svg>
+  جدول جديد
+</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="stat-card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-slate-500 text-xs font-semibold mb-1">إجمالي الجداول</div>
+        <div class="text-2xl font-bold text-slate-800">{{ spreadsheets | length }}</div>
+      </div>
+      <div class="w-11 h-11 bg-green-100 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-5h2v5zm4 0h-2v-7h2v7zm4 0h-2v-9h2v9z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-slate-500 text-xs font-semibold mb-1">إجمالي الصفوف</div>
+        <div class="text-2xl font-bold text-slate-800">
+          {{ spreadsheets | sum(attribute='row_count') }}
+        </div>
+      </div>
+      <div class="w-11 h-11 bg-blue-100 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-slate-500 text-xs font-semibold mb-1">قواعد المزامنة</div>
+        <div class="text-2xl font-bold text-slate-800">{{ rules | length }}</div>
+      </div>
+      <div class="w-11 h-11 bg-yellow-100 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-slate-500 text-xs font-semibold mb-1">حالة الحساب</div>
+        <div class="mt-1">
+          {% if account %}
+            <span class="badge badge-green">متصل</span>
+          {% else %}
+            <span class="badge badge-red">غير مربوط</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="w-11 h-11 bg-purple-100 rounded-xl flex items-center justify-center">
+        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Spreadsheets grid -->
+<div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+  <div class="p-4 border-b border-slate-100">
+    <h3 class="font-bold text-slate-800">جداول البيانات</h3>
+  </div>
+
+  {% if spreadsheets %}
+  <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for s in spreadsheets %}
+    <div class="border border-slate-100 rounded-xl p-4 hover:border-primary-300 hover:shadow-md transition-all">
+      <div class="flex items-start gap-3 mb-3">
+        <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-5h2v5zm4 0h-2v-7h2v7zm4 0h-2v-9h2v9z"/>
+          </svg>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="font-semibold text-slate-800 text-sm truncate">{{ s.name }}</div>
+          <div class="text-xs text-slate-500">{{ s.sheet_name or 'Sheet1' }}</div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-xs text-slate-600 mb-3">
+        <div>📊 {{ s.row_count or 0 }} صف</div>
+        <div>📋 {{ s.column_count or 0 }} عمود</div>
+      </div>
+      {% if s.web_view_link %}
+      <a href="{{ s.web_view_link }}" target="_blank" rel="noopener"
+         class="text-primary-600 hover:underline text-xs font-semibold">فتح في Google Sheets →</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-16 text-slate-400">
+    <svg class="w-14 h-14 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+    </svg>
+    <p class="text-sm">لا توجد جداول بعد</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal: New Sheet -->
+<div id="new-sheet-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-slate-800">ربط جدول بيانات</h3>
+      <button onclick="closeModal('new-sheet-modal')" class="text-slate-400 hover:text-slate-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <form hx-post="/api/google-sheets/link" hx-swap="none" class="p-5 space-y-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Spreadsheet ID</label>
+        <input name="spreadsheet_id" required class="form-input" dir="ltr" placeholder="1AbC..."/>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">اسم الورقة</label>
+        <input name="sheet_name" class="form-input" placeholder="Sheet1"/>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeModal('new-sheet-modal')" class="btn-secondary">إلغاء</button>
+        <button type="submit" class="btn-primary">ربط</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
